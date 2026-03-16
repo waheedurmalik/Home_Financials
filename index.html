@@ -1018,7 +1018,7 @@ function PeriodPicker({ label, preset, setPreset, customFrom, setCustomFrom, cus
     fontFamily: "inherit"
   } }, l))), preset === "custom" ? /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 8, flexWrap: "wrap" } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 5 } }, /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, fontWeight: 500, color: C.muted } }, "From"), /* @__PURE__ */ React.createElement("input", { type: "date", value: customFrom, onChange: (e) => setCustomFrom(e.target.value), style: __spreadProps(__spreadValues({}, inp()), { colorScheme: "light", padding: "4px 8px", fontSize: 11, cursor: "pointer", minWidth: 130 }) })), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 5 } }, /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, fontWeight: 500, color: C.muted } }, "To"), /* @__PURE__ */ React.createElement("input", { type: "date", value: customTo, onChange: (e) => setCustomTo(e.target.value), style: __spreadProps(__spreadValues({}, inp()), { colorScheme: "light", padding: "4px 8px", fontSize: 11, cursor: "pointer", minWidth: 130 }) }))) : /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11, fontWeight: 500, color: C.muted, marginTop: 2 } }, from, " \u2192 ", to));
 }
-function HBarChart({ data, showB, labelA, labelB, colorOf, currency, onClickA, onClickB }) {
+function HBarChart({ data, showB, labelA, labelB, colorOf, colA, colB, currency, onClickA, onClickB }) {
   const canvasRef = useRef(null);
   const [tooltip, setTooltip] = useState(null);
   const BAR_H = showB ? 22 : 26;
@@ -1038,7 +1038,7 @@ function HBarChart({ data, showB, labelA, labelB, colorOf, currency, onClickA, o
     const maxVal = Math.max(...data.flatMap((r) => [r.A || 0, r.B || 0]), 1);
     const chartW = W - PAD.left - PAD.right;
     const ticks = 4;
-    ctx.strokeStyle = "#1e2e1e";
+    ctx.strokeStyle = "#dde1e9";
     ctx.lineWidth = 1;
     for (let i = 0; i <= ticks; i++) {
       const x = PAD.left + chartW / ticks * i;
@@ -1047,7 +1047,7 @@ function HBarChart({ data, showB, labelA, labelB, colorOf, currency, onClickA, o
       ctx.lineTo(x, height - PAD.bottom);
       ctx.stroke();
       const v = maxVal / ticks * i;
-      ctx.fillStyle = "#4a5a4a";
+      ctx.fillStyle = "#9ba8b8";
       ctx.font = "10px monospace";
       ctx.textAlign = "center";
       ctx.fillText(v >= 1e3 ? (v / 1e3).toFixed(0) + "k" : Math.round(v), x, height - PAD.bottom + 14);
@@ -1055,39 +1055,41 @@ function HBarChart({ data, showB, labelA, labelB, colorOf, currency, onClickA, o
     data.forEach((row, i) => {
       const col = colorOf(row.key);
       const rowTop = PAD.top + i * (showB ? BAR_H * 2 + GAP + 14 : BAR_H + 12);
-      ctx.fillStyle = "#9aaa9a";
+      ctx.fillStyle = "#6b7a8d";
       ctx.font = "11px system-ui,sans-serif";
       ctx.textAlign = "right";
       const label = row.key.length > 16 ? row.key.slice(0, 15) + "\u2026" : row.key;
       ctx.fillText(label, PAD.left - 8, rowTop + BAR_H / 2 + 4);
       const wA = (row.A || 0) / maxVal * chartW;
-      ctx.fillStyle = col;
+      const barColA = colA || col;
+      ctx.fillStyle = barColA;
       ctx.beginPath();
       ctx.roundRect(PAD.left, rowTop, Math.max(wA, 2), BAR_H, [0, 4, 4, 0]);
       ctx.fill();
       if ((row.A || 0) > 0) {
-        ctx.fillStyle = "#6a7a6a";
-        ctx.font = "10px monospace";
+        ctx.fillStyle = barColA;
+        ctx.font = "bold 10px system-ui,sans-serif";
         ctx.textAlign = "left";
         const vA = row.A >= 1e3 ? (row.A / 1e3).toFixed(1) + "k" : Math.round(row.A);
         ctx.fillText(vA, PAD.left + wA + 4, rowTop + BAR_H / 2 + 4);
       }
       if (showB && (row.B || 0) >= 0) {
         const wB = (row.B || 0) / maxVal * chartW;
-        ctx.fillStyle = "#a78bfa88";
+        const barColB = colB || "#a78bfa";
+        ctx.fillStyle = barColB + "bb";
         ctx.beginPath();
         ctx.roundRect(PAD.left, rowTop + BAR_H + GAP, Math.max(wB, 2), BAR_H, [0, 4, 4, 0]);
         ctx.fill();
         if ((row.B || 0) > 0) {
-          ctx.fillStyle = "#a78bfa88";
-          ctx.font = "10px monospace";
+          ctx.fillStyle = barColB;
+          ctx.font = "bold 10px system-ui,sans-serif";
           ctx.textAlign = "left";
           const vB = row.B >= 1e3 ? (row.B / 1e3).toFixed(1) + "k" : Math.round(row.B);
           ctx.fillText(vB, PAD.left + wB + 4, rowTop + BAR_H + GAP + BAR_H / 2 + 4);
         }
       }
     });
-  }, [data, showB, height, colorOf, currency]);
+  }, [data, showB, height, colorOf, colA, colB, currency]);
   function handleMouseMove(e) {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -1171,7 +1173,7 @@ function LineChartCanvas({ data, series, colorOf, currency, xKey, dashedKeys = [
     const allVals = data.flatMap((d) => series.map((s) => d[s] || 0));
     const maxVal = Math.max(...allVals, 1);
     const yTicks = 4;
-    ctx.strokeStyle = "#1e2e1e";
+    ctx.strokeStyle = "#dde1e9";
     ctx.lineWidth = 1;
     for (let i = 0; i <= yTicks; i++) {
       const y = PAD.top + chartH - chartH / yTicks * i;
@@ -1180,13 +1182,13 @@ function LineChartCanvas({ data, series, colorOf, currency, xKey, dashedKeys = [
       ctx.lineTo(PAD.left + chartW, y);
       ctx.stroke();
       const v = maxVal / yTicks * i;
-      ctx.fillStyle = "#4a5a4a";
+      ctx.fillStyle = "#9ba8b8";
       ctx.font = "10px monospace";
       ctx.textAlign = "right";
       ctx.fillText(v >= 1e3 ? (v / 1e3).toFixed(0) + "k" : Math.round(v), PAD.left - 4, y + 3);
     }
     const step = Math.max(1, Math.floor(data.length / 8));
-    ctx.fillStyle = "#4a5a4a";
+    ctx.fillStyle = "#9ba8b8";
     ctx.font = "10px monospace";
     ctx.textAlign = "center";
     data.forEach((d, i) => {
@@ -1311,7 +1313,7 @@ function SpendingChart({ transactions, taxonomy, currency, onDrillTxs }) {
     return /* @__PURE__ */ React.createElement("div", { style: { background: C.s2, border: `1px solid ${C.border}`, borderRadius: 10, padding: "10px 14px", fontSize: 12, minWidth: 160 } }, /* @__PURE__ */ React.createElement("div", { style: { fontWeight: 700, color: col, marginBottom: 6 } }, label), payload.map((p, i) => /* @__PURE__ */ React.createElement("div", { key: i, style: { display: "flex", justifyContent: "space-between", gap: 16, marginBottom: 2, color: C.muted } }, /* @__PURE__ */ React.createElement("span", { style: { color: p.fill } }, p.name), /* @__PURE__ */ React.createElement("span", { style: { fontFamily: "monospace", color: C.text } }, fmt(p.value, currency)))), payload.length === 2 && payload[1].value > 0 && /* @__PURE__ */ React.createElement("div", { style: { marginTop: 6, paddingTop: 6, borderTop: `1px solid ${C.border}`, fontSize: 11, color: C.dim } }, payload[0].value > payload[1].value ? /* @__PURE__ */ React.createElement("span", { style: { color: "#f57676" } }, "\u25B2 ", ((payload[0].value / payload[1].value - 1) * 100).toFixed(0), "% vs ", labelB) : /* @__PURE__ */ React.createElement("span", { style: { color: "#76f5d4" } }, "\u25BC ", ((1 - payload[0].value / payload[1].value) * 100).toFixed(0), "% vs ", labelB)));
   }
   const barHeight = showB ? 52 : 34;
-  return /* @__PURE__ */ React.createElement("div", { style: card }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center", justifyContent: "space-between", marginBottom: 14 } }, /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "inherit", fontSize: 17 } }, "Spending by ", mode === "categories" ? "Category" : "Subcategory"), /* @__PURE__ */ React.createElement(Pill, { options: [["categories", "Categories"], ["subcategories", "Subcategories"]], value: mode, onChange: setMode })), /* @__PURE__ */ React.createElement("div", { style: { display: "grid", gridTemplateColumns: showB ? "1fr 1fr" : "1fr", gap: 10, marginBottom: 12 } }, /* @__PURE__ */ React.createElement(PeriodPicker, { label: "Period A", preset: presetA, setPreset: setPresetA, customFrom: cfA, setCustomFrom: setCfA, customTo: ctA, setCustomTo: setCtA, color: C.accent }), showB && /* @__PURE__ */ React.createElement(PeriodPicker, { label: "Period B", preset: presetB, setPreset: setPresetB, customFrom: cfB, setCustomFrom: setCfB, customTo: ctB, setCustomTo: setCtB, color: "#a78bfa" })), /* @__PURE__ */ React.createElement("button", { onClick: () => setShowB((v) => !v), style: __spreadProps(__spreadValues({}, btn(showB ? "rgba(167,139,250,0.15)" : C.s2, showB ? "#a78bfa" : C.muted, `1px solid ${showB ? "#a78bfa44" : C.border}`, 11, "5px 12px")), { marginBottom: 14 }) }, showB ? "\u2715 Remove Period B" : "+ Compare Period B"), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 14 } }, Object.entries(TYPE_META).map(([v, m]) => /* @__PURE__ */ React.createElement("button", { key: v, onClick: () => setTypeFilter((p) => p.includes(v) ? p.filter((x) => x !== v) : [...p, v]), style: { padding: "4px 10px", borderRadius: 20, border: `1px solid ${typeFilter.includes(v) ? m.color : C.border}`, background: typeFilter.includes(v) ? m.color + "18" : "transparent", color: typeFilter.includes(v) ? m.color : C.dim, fontSize: 11, cursor: "pointer", fontFamily: "inherit", fontWeight: typeFilter.includes(v) ? 600 : 400 } }, typeFilter.includes(v) ? "\u25CF" : "\u25CB", " ", m.full))), showB && /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 16, marginBottom: 10 } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 500, color: C.muted } }, /* @__PURE__ */ React.createElement("div", { style: { width: 12, height: 12, borderRadius: 3, background: C.accent } }), labelA), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 500, color: C.muted } }, /* @__PURE__ */ React.createElement("div", { style: { width: 12, height: 12, borderRadius: 3, background: "#a78bfa" } }), labelB)), chartData.length === 0 ? /* @__PURE__ */ React.createElement("div", { style: { padding: 40, textAlign: "center", color: C.dim, fontSize: 13 } }, "No data for this period") : /* @__PURE__ */ React.createElement(HBarChart, { data: chartData, showB, labelA, labelB, colorOf, currency, onClickA: (e) => handleClick(e, "A"), onClickB: (e) => handleClick(e, "B") }), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11, color: C.dim, marginTop: 8, textAlign: "center" } }, "Tap a bar to drill into its transactions"));
+  return /* @__PURE__ */ React.createElement("div", { style: card }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center", justifyContent: "space-between", marginBottom: 14 } }, /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "inherit", fontSize: 17 } }, "Spending by ", mode === "categories" ? "Category" : "Subcategory"), /* @__PURE__ */ React.createElement(Pill, { options: [["categories", "Categories"], ["subcategories", "Subcategories"]], value: mode, onChange: setMode })), /* @__PURE__ */ React.createElement("div", { style: { display: "grid", gridTemplateColumns: showB ? "1fr 1fr" : "1fr", gap: 10, marginBottom: 12 } }, /* @__PURE__ */ React.createElement(PeriodPicker, { label: "Period A", preset: presetA, setPreset: setPresetA, customFrom: cfA, setCustomFrom: setCfA, customTo: ctA, setCustomTo: setCtA, color: C.accent }), showB && /* @__PURE__ */ React.createElement(PeriodPicker, { label: "Period B", preset: presetB, setPreset: setPresetB, customFrom: cfB, setCustomFrom: setCfB, customTo: ctB, setCustomTo: setCtB, color: "#a78bfa" })), /* @__PURE__ */ React.createElement("button", { onClick: () => setShowB((v) => !v), style: __spreadProps(__spreadValues({}, btn(showB ? "rgba(167,139,250,0.15)" : C.s2, showB ? "#a78bfa" : C.muted, `1px solid ${showB ? "#a78bfa44" : C.border}`, 11, "5px 12px")), { marginBottom: 14 }) }, showB ? "\u2715 Remove Period B" : "+ Compare Period B"), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 14 } }, Object.entries(TYPE_META).map(([v, m]) => /* @__PURE__ */ React.createElement("button", { key: v, onClick: () => setTypeFilter((p) => p.includes(v) ? p.filter((x) => x !== v) : [...p, v]), style: { padding: "4px 10px", borderRadius: 20, border: `1px solid ${typeFilter.includes(v) ? m.color : C.border}`, background: typeFilter.includes(v) ? m.color + "18" : "transparent", color: typeFilter.includes(v) ? m.color : C.dim, fontSize: 11, cursor: "pointer", fontFamily: "inherit", fontWeight: typeFilter.includes(v) ? 600 : 400 } }, typeFilter.includes(v) ? "\u25CF" : "\u25CB", " ", m.full))), showB && /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 16, marginBottom: 10 } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 600, color: C.accent } }, /* @__PURE__ */ React.createElement("div", { style: { width: 14, height: 14, borderRadius: 3, background: C.accent } }), labelA), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 600, color: "#5a6fd6" } }, /* @__PURE__ */ React.createElement("div", { style: { width: 14, height: 14, borderRadius: 3, background: "#5a6fd6bb" } }), labelB)), chartData.length === 0 ? /* @__PURE__ */ React.createElement("div", { style: { padding: 40, textAlign: "center", color: C.dim, fontSize: 13 } }, "No data for this period") : /* @__PURE__ */ React.createElement(HBarChart, { data: chartData, showB, labelA, labelB, colorOf, colA: C.accent, colB: "#5a6fd6", currency, onClickA: (e) => handleClick(e, "A"), onClickB: (e) => handleClick(e, "B") }), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11, color: C.dim, marginTop: 8, textAlign: "center" } }, "Tap a bar to drill into its transactions"));
 }
 function TrendChart({ transactions, taxonomy, currency }) {
   const [mode, setMode] = useState("categories");

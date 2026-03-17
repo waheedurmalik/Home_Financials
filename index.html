@@ -44,11 +44,21 @@ window.onunhandledrejection=function(ev){ showErr('Promise: '+(ev.reason&&ev.rea
 <script src="https://cdn.jsdelivr.net/npm/react-dom@17.0.2/umd/react-dom.production.min.js" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" crossorigin="anonymous"></script>
 <script>
-if(!window.React||!window.ReactDOM){showErr('Libraries failed to load. Check internet connection.');}
+if(!window.React||!window.ReactDOM){
+  showErr('Libraries failed to load. Check internet connection and try again.');
+} else {
+  // Verify React 17 API
+  if(typeof ReactDOM.render !== 'function'){
+    showErr('ReactDOM.render not available — unexpected React version.');
+  }
+}
 </script>
 <script>
+// Service worker registration - deferred and non-blocking
 if('serviceWorker' in navigator){
-  window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});
+  window.addEventListener('load',function(){
+    try { navigator.serviceWorker.register('sw.js').catch(function(){}); } catch(e) {}
+  });
 }
 new MutationObserver(function(m,obs){
   var root=document.getElementById('root');
@@ -60,6 +70,7 @@ new MutationObserver(function(m,obs){
 }).observe(document.getElementById('root'),{childList:true});
 </script>
 <script>
+try {
 var React = window.React;
 var ReactDOM = window.ReactDOM;
 var XLSX = window.XLSX;
@@ -2120,6 +2131,8 @@ function App() {
 }
 ReactDOM.render(React.createElement(App), document.getElementById("root"));
 
+} catch(e) { showErr(e.message || String(e)); }
 </script>
+
 </body>
 </html>

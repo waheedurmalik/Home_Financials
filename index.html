@@ -33,26 +33,28 @@
 <div id="root"></div>
 <script>
 function showErr(msg){
-  document.getElementById('splash-msg').style.display='none';
-  var e=document.getElementById('err');
-  e.style.display='block';
-  e.innerHTML='<strong>Error:</strong><br>'+msg;
+  var sp=document.getElementById('splash-msg'); if(sp) sp.style.display='none';
+  var e=document.getElementById('err'); if(e){e.style.display='block';e.innerHTML='<strong>Error:</strong><br>'+msg;}
 }
-window.addEventListener('error',function(ev){ showErr((ev.message||'Unknown')+' — line '+ev.lineno); });
-window.addEventListener('unhandledrejection',function(ev){ showErr('Promise: '+(ev.reason&&ev.reason.message||ev.reason||'unknown')); });
+window.onerror=function(msg,src,line){ showErr((msg||'Unknown')+' — line '+line); return true; };
+window.onunhandledrejection=function(ev){ showErr('Promise: '+(ev.reason&&ev.reason.message||String(ev.reason)||'unknown')); };
 </script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js" crossorigin onerror="showErr('React failed to load')"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js" crossorigin onerror="showErr('ReactDOM failed to load')"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" crossorigin onerror="showErr('XLSX failed to load')"></script>
+<!-- React 17 — compatible with iOS 12+ -->
+<script src="https://cdn.jsdelivr.net/npm/react@17.0.2/umd/react.production.min.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/react-dom@17.0.2/umd/react-dom.production.min.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" crossorigin="anonymous"></script>
+<script>
+if(!window.React||!window.ReactDOM){showErr('Libraries failed to load. Check internet connection.');}
+</script>
 <script>
 if('serviceWorker' in navigator){
   window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});
 }
 new MutationObserver(function(m,obs){
-  if(document.getElementById('root').firstChild){
+  var root=document.getElementById('root');
+  if(root&&root.firstChild){
     var s=document.getElementById('splash');
-    s.style.opacity='0';
-    setTimeout(function(){s.style.display='none';},300);
+    if(s){s.style.opacity='0';setTimeout(function(){s.style.display='none';},300);}
     obs.disconnect();
   }
 }).observe(document.getElementById('root'),{childList:true});
@@ -2116,7 +2118,7 @@ function App() {
     }, style: btn("rgba(245,118,118,0.1)", C.danger, `1px solid ${C.danger}44`, 11, "3px 7px") }, "\u{1F5D1}"))));
   })))));
 }
-ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(App));
+ReactDOM.render(React.createElement(App), document.getElementById("root"));
 
 </script>
 </body>

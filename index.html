@@ -28,6 +28,7 @@
 <div id="splash">
   <img src="logo.png" alt="Home Ledger" style="max-width:260px;width:80%;height:auto;filter:saturate(1.4) brightness(0.9);"/>
   <div id="splash-msg" style="font-size:13px;font-weight:500;color:#7a8699;margin-top:8px;">Starting…</div>
+  <div id="splash-steps" style="font-size:11px;color:#aaa;margin-top:6px;text-align:center;line-height:1.8;font-family:monospace;"></div>
   <div id="err"></div>
 </div>
 <div id="root"></div>
@@ -36,13 +37,21 @@ function showErr(msg){
   var sp=document.getElementById('splash-msg'); if(sp) sp.style.display='none';
   var e=document.getElementById('err'); if(e){e.style.display='block';e.innerHTML='<strong>Error:</strong><br>'+msg;}
 }
+function step(msg){
+  var s=document.getElementById('splash-steps');
+  if(s) s.innerHTML+=msg+'<br>';
+}
 window.onerror=function(msg,src,line){ showErr((msg||'Unknown')+' — line '+line); return true; };
 window.onunhandledrejection=function(ev){ showErr('Promise: '+(ev.reason&&ev.reason.message||String(ev.reason)||'unknown')); };
+step('1. Page loaded');
 </script>
 <!-- React 17 — compatible with iOS 12+ -->
 <script src="https://cdn.jsdelivr.net/npm/react@17.0.2/umd/react.production.min.js" crossorigin="anonymous"></script>
+<script>step('2. React loaded: '+(typeof React));</script>
 <script src="https://cdn.jsdelivr.net/npm/react-dom@17.0.2/umd/react-dom.production.min.js" crossorigin="anonymous"></script>
+<script>step('3. ReactDOM loaded: '+(typeof ReactDOM));</script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" crossorigin="anonymous"></script>
+<script>step('4. XLSX loaded: '+(typeof XLSX));</script>
 <script>
 if(!window.React||!window.ReactDOM){
   showErr('Libraries failed to load. Check internet connection and try again.');
@@ -70,6 +79,7 @@ new MutationObserver(function(m,obs){
 }).observe(document.getElementById('root'),{childList:true});
 </script>
 <script>
+step('5. App starting...');
 try {
 var React = window.React;
 var ReactDOM = window.ReactDOM;

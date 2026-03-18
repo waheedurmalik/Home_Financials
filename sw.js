@@ -1,36 +1,43 @@
-const CACHE = "fa-v3";
-const ASSETS = [
-  "./",
-  "./index.html",
-  "./manifest.json",
-  "./icon-192.svg",
-  "./icon-512.svg"
-];
+const CACHE = “hl-v4”;
+const ASSETS = [”./”, “./index.html”, “./manifest.json”, “./logo.png”];
 
-self.addEventListener("install", e => {
-  e.waitUntil(
-    caches.open(CACHE).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting())
-  );
+self.addEventListener(“install”, function(e) {
+e.waitUntil(
+caches.open(CACHE).then(function(c) { return c.addAll(ASSETS); }).then(function() { return self.skipWaiting(); })
+);
 });
 
-self.addEventListener("activate", e => {
-  e.waitUntil(
-    caches.keys().then(keys =>
-      Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))
-    ).then(() => self.clients.claim())
-  );
+self.addEventListener(“activate”, function(e) {
+e.waitUntil(
+caches.keys().then(function(keys) {
+return Promise.all(keys.filter(function(k) { return k !== CACHE; }).map(function(k) { return caches.delete(k); }));
+}).then(function() { return self.clients.claim(); })
+);
 });
 
-self.addEventListener("fetch", e => {
-  e.respondWith(
-    caches.match(e.request).then(cached => {
-      return fetch(e.request).then(res => {
-        if (res && res.status === 200) {
-          const clone = res.clone();
-          caches.open(CACHE).then(c => c.put(e.request, clone));
-        }
-        return res;
-      }).catch(() => cached);
-    })
-  );
+self.addEventListener(“fetch”, function(e) {
+var url = e.request.url;
+
+// Never intercept: POST requests, API calls, CDN scripts
+if (e.request.method !== “GET” ||
+url.indexOf(“anthropic.com”) !== -1 ||
+url.indexOf(“exchangerate-api.com”) !== -1 ||
+url.indexOf(“jsdelivr.net”) !== -1 ||
+url.indexOf(“cdnjs.cloudflare.com”) !== -1) {
+return;
+}
+
+// Cache-first for local assets only
+e.respondWith(
+caches.match(e.request).then(function(cached) {
+if (cached) return cached;
+return fetch(e.request).then(function(res) {
+if (res && res.status === 200 && res.type === “basic”) {
+var clone = res.clone();
+caches.open(CACHE).then(function(c) { c.put(e.request, clone); });
+}
+return res;
+});
+})
+);
 });

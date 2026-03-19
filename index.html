@@ -36,52 +36,19 @@ function showErr(msg){var sp=document.getElementById('splash-msg');if(sp)sp.styl
 window.onerror=function(msg,src,line){showErr((msg||'Unknown')+' — line '+line);return true;};
 window.onunhandledrejection=function(ev){showErr('Promise: '+(ev.reason&&ev.reason.message||String(ev.reason)||'unknown'));};
 </script>
+<!-- React + XLSX -->
 <script src="https://cdn.jsdelivr.net/npm/react@17.0.2/umd/react.production.min.js" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/react-dom@17.0.2/umd/react-dom.production.min.js" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" crossorigin="anonymous"></script>
+<!-- Firebase compat SDK — loads as window.firebase with .auth() and .firestore() as functions -->
 <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
-<script>
-// Save the real compat functions BEFORE shimming replaces them
-// firebase.auth(app) returns an auth instance — save this bound function
-window._firebaseAuthFn = firebase.auth.bind(firebase);
-window._firebaseFsFn   = firebase.firestore.bind(firebase);
-window._GoogleAuthProvider = firebase.auth.GoogleAuthProvider;
-
-// Replace firebase.auth/firestore with namespace objects that our app code uses
-(function() {
-var _fb = window.firebase;
-_fb.auth = {
-getAuth: window._firebaseAuthFn,
-GoogleAuthProvider: window._GoogleAuthProvider,
-signInWithPopup: function(a, p) { return a.signInWithPopup(p); },
-signOut: function(a) { return a.signOut(); },
-onAuthStateChanged: function(a, cb) { return a.onAuthStateChanged(cb); }
-};
-_fb.firestore = {
-getFirestore: window._firebaseFsFn,
-doc: function(db) {
-var parts = Array.prototype.slice.call(arguments, 1);
-return db.doc(parts.join(’/’));
-},
-getDoc: function(ref) { return ref.get(); },
-setDoc: function(ref, data) { return ref.set(data); }
-};
-// Expose apps array for getFB() initialization check
-Object.defineProperty(_fb, ‘apps’, {
-get: function() { return firebase.apps || []; }
-});
-})();
-</script>
-
-<script>if(!window.React||!window.ReactDOM){showErr('Libraries failed to load.');}</script>
-
+<script>if(!window.React||!window.ReactDOM||!window.firebase){showErr('Libraries failed to load. Check connection.');}</script>
 <script>
 if('serviceWorker' in navigator){window.addEventListener('load',function(){try{navigator.serviceWorker.register('sw.js').catch(function(){});}catch(e){}});}
 new MutationObserver(function(m,obs){var root=document.getElementById('root');if(root&&root.firstChild){var s=document.getElementById('splash');if(s){s.style.opacity='0';setTimeout(function(){s.style.display='none';},300);}obs.disconnect();}}).observe(document.getElementById('root'),{childList:true});
 </script>
-
 <script>
 try{
 var React = window.React;
@@ -99,11 +66,13 @@ const FIREBASE_CONFIG = {
 var _fbApp = null, _fbAuth = null, _fbDb = null;
 function getFB() {
   if (_fbAuth && _fbDb) return { auth: _fbAuth, db: _fbDb };
+  var fb = window.firebase;
+  if (!fb) throw new Error("Firebase not loaded");
   if (!_fbApp) {
-    _fbApp = window.firebase.apps && window.firebase.apps.length ? window.firebase.apps[0] : window.firebase.initializeApp(FIREBASE_CONFIG);
+    _fbApp = fb.apps && fb.apps.length ? fb.apps[0] : fb.initializeApp(FIREBASE_CONFIG);
   }
-  _fbAuth = window._firebaseAuthFn(_fbApp);
-  _fbDb = window._firebaseFsFn(_fbApp);
+  _fbAuth = fb.auth(_fbApp);
+  _fbDb = fb.firestore(_fbApp);
   return { auth: _fbAuth, db: _fbDb };
 }
 const DEFAULT_TAXONOMY = {
@@ -289,7 +258,7 @@ function SignInScreen({ onSignedIn }) {
     setErr("");
     try {
       const { auth } = getFB();
-      const provider = new firebase.auth.GoogleAuthProvider();
+      const provider = new window.firebase.auth.GoogleAuthProvider();
       const result = await auth.signInWithPopup(provider);
       onSignedIn(result.user);
     } catch (e) {

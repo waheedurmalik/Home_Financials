@@ -1,4 +1,4 @@
-const CACHE = “hl-v4”;
+const CACHE = “hf-v5”;
 const ASSETS = [”./”, “./index.html”, “./manifest.json”, “./logo.png”];
 
 self.addEventListener(“install”, function(e) {
@@ -17,8 +17,6 @@ return Promise.all(keys.filter(function(k) { return k !== CACHE; }).map(function
 
 self.addEventListener(“fetch”, function(e) {
 var url = e.request.url;
-
-// Never intercept: POST requests, API calls, CDN scripts
 if (e.request.method !== “GET” ||
 url.indexOf(“anthropic.com”) !== -1 ||
 url.indexOf(“exchangerate-api.com”) !== -1 ||
@@ -26,8 +24,6 @@ url.indexOf(“jsdelivr.net”) !== -1 ||
 url.indexOf(“cdnjs.cloudflare.com”) !== -1) {
 return;
 }
-
-// Cache-first for local assets only
 e.respondWith(
 caches.match(e.request).then(function(cached) {
 if (cached) return cached;

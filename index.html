@@ -1419,7 +1419,9 @@ function SpendingChart({ transactions, taxonomy, currency, onDrillTxs, pFrom, pT
   };
   const overtimeData = useMemo(() => {
     const sk = mode === "categories" ? "category" : "subcategory";
-    const filtered = overtimeSel === "__all__" ? txA : txA.filter((t) => t[sk] === overtimeSel);
+    const passType = (t) => t.isCredit || globalTypeFilter.includes(t.txType);
+    const base = txA.filter(passType);
+    const filtered = overtimeSel === "__all__" ? base : base.filter((t) => t[sk] === overtimeSel);
     const byMonth = {};
     filtered.forEach((t) => {
       const m = t.date ? t.date.slice(0, 7) : "";
@@ -1428,7 +1430,7 @@ function SpendingChart({ transactions, taxonomy, currency, onDrillTxs, pFrom, pT
     });
     var rate = displayRates && displayCurrency && displayRates[displayCurrency] ? displayRates[displayCurrency] : 1;
     return Object.entries(byMonth).sort(([a], [b]) => a.localeCompare(b)).map(([m, v]) => ({ key: fmtM(m), rawKey: m, A: v * rate, B: 0 }));
-  }, [txA, mode, overtimeSel, displayRates, displayCurrency]);
+  }, [txA, mode, overtimeSel, displayRates, displayCurrency, globalTypeFilter]);
   const overtimeOptions = useMemo(() => {
     const sk = mode === "categories" ? "category" : "subcategory";
     const keys = [...new Set(txA.map((t) => t[sk]))].filter(Boolean).sort();
@@ -1463,7 +1465,7 @@ function SpendingChart({ transactions, taxonomy, currency, onDrillTxs, pFrom, pT
     return /* @__PURE__ */ React.createElement("div", { style: { background: C.s2, border: `1px solid ${C.border}`, borderRadius: 10, padding: "10px 14px", fontSize: 12, minWidth: 160 } }, /* @__PURE__ */ React.createElement("div", { style: { fontWeight: 700, color: col, marginBottom: 6 } }, label), payload.map((p, i) => /* @__PURE__ */ React.createElement("div", { key: i, style: { display: "flex", justifyContent: "space-between", gap: 16, marginBottom: 2, color: C.muted } }, /* @__PURE__ */ React.createElement("span", { style: { color: p.fill } }, p.name), /* @__PURE__ */ React.createElement("span", { style: { fontFamily: "monospace", color: C.text } }, fmt(p.value, currency)))), payload.length === 2 && payload[1].value > 0 && /* @__PURE__ */ React.createElement("div", { style: { marginTop: 6, paddingTop: 6, borderTop: `1px solid ${C.border}`, fontSize: 11, color: C.dim } }, payload[0].value > payload[1].value ? /* @__PURE__ */ React.createElement("span", { style: { color: C.danger } }, "\u25B2 ", ((payload[0].value / payload[1].value - 1) * 100).toFixed(0), "% vs ", labelB) : /* @__PURE__ */ React.createElement("span", { style: { color: "#0e9e7a" } }, "\u25BC ", ((1 - payload[0].value / payload[1].value) * 100).toFixed(0), "% vs ", labelB)));
   }
   const barHeight = showB ? 52 : 34;
-  return /* @__PURE__ */ React.createElement("div", { style: card }, /* @__PURE__ */ React.createElement("div", { style: { marginBottom: 12 } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 8, marginBottom: 10 } }, /* @__PURE__ */ React.createElement("button", { onClick: () => setChartView("comparison"), style: { flex: 1, padding: "8px 0", borderRadius: 10, border: `1px solid ${chartView === "comparison" ? C.accent : C.border}`, background: chartView === "comparison" ? "rgba(42,157,111,0.08)" : "transparent", color: chartView === "comparison" ? C.accent : C.muted, fontSize: 13, fontWeight: chartView === "comparison" ? 700 : 500, cursor: "pointer", fontFamily: "inherit" } }, "\u{1F4CA} Category Comparison"), /* @__PURE__ */ React.createElement("button", { onClick: () => setChartView("overtime"), style: { flex: 1, padding: "8px 0", borderRadius: 10, border: `1px solid ${chartView === "overtime" ? C.accent : C.border}`, background: chartView === "overtime" ? "rgba(42,157,111,0.08)" : "transparent", color: chartView === "overtime" ? C.accent : C.muted, fontSize: 13, fontWeight: chartView === "overtime" ? 700 : 500, cursor: "pointer", fontFamily: "inherit" } }, "\u{1F4C8} Amount Over Time")), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center" } }, /* @__PURE__ */ React.createElement(Pill, { options: [["categories", "Categories"], ["subcategories", "Subcategories"]], value: mode, onChange: (v) => {
+  return /* @__PURE__ */ React.createElement("div", { style: card }, /* @__PURE__ */ React.createElement("div", { style: { marginBottom: 12 } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 8, marginBottom: 10 } }, /* @__PURE__ */ React.createElement("button", { onClick: () => setChartView("comparison"), style: { flex: 1, padding: "8px 0", borderRadius: 10, border: `1px solid ${chartView === "comparison" ? C.accent : C.border}`, background: chartView === "comparison" ? "rgba(42,157,111,0.08)" : "transparent", color: chartView === "comparison" ? C.accent : C.muted, fontSize: 13, fontWeight: chartView === "comparison" ? 700 : 500, cursor: "pointer", fontFamily: "inherit" } }, "\u{1F4CA} Category Comparison"), /* @__PURE__ */ React.createElement("button", { onClick: () => setChartView("overtime"), style: { flex: 1, padding: "8px 0", borderRadius: 10, border: `1px solid ${chartView === "overtime" ? C.accent : C.border}`, background: chartView === "overtime" ? "rgba(42,157,111,0.08)" : "transparent", color: chartView === "overtime" ? C.accent : C.muted, fontSize: 13, fontWeight: chartView === "overtime" ? 700 : 500, cursor: "pointer", fontFamily: "inherit" } }, "\u{1F4C8} Time Comparison")), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center" } }, /* @__PURE__ */ React.createElement(Pill, { options: [["categories", "Categories"], ["subcategories", "Subcategories"]], value: mode, onChange: (v) => {
     setMode(v);
     setOvertimeSel("__all__");
   } }), chartView === "overtime" && /* @__PURE__ */ React.createElement("select", { value: overtimeSel, onChange: (e) => setOvertimeSel(e.target.value), style: { ...inp({ padding: "5px 10px", fontSize: 12 }), width: "auto", maxWidth: 160 } }, /* @__PURE__ */ React.createElement("option", { value: "__all__" }, "All ", mode === "categories" ? "Categories" : "Subcategories"), overtimeOptions.map((k) => /* @__PURE__ */ React.createElement("option", { key: k, value: k }, k))))), showB && /* @__PURE__ */ React.createElement("div", { style: { marginBottom: 12, padding: "10px 14px", background: "rgba(90,111,214,0.06)", border: "1px solid rgba(90,111,214,0.2)", borderRadius: 12 } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11, fontWeight: 700, color: "#5a6fd6", marginBottom: 8, letterSpacing: "0.06em" } }, "PERIOD B"), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center", marginBottom: presetB === "custom" ? 8 : 4 } }, [["all", "All"], ["this_year", "This Year"], ["last_year", "Last Year"], ["this_month", "This Month"], ["last_month", "Last Month"], ["custom", "Custom"]].map(([v, l]) => /* @__PURE__ */ React.createElement("button", { key: v, onClick: () => {
@@ -1501,6 +1503,7 @@ function SpendingChart({ transactions, taxonomy, currency, onDrillTxs, pFrom, pT
         const txs = txA.filter((t) => {
           const m = t.date ? t.date.slice(0, 7) : "";
           if (m !== mKey) return false;
+          if (!t.isCredit && !globalTypeFilter.includes(t.txType)) return false;
           if (overtimeSel !== "__all__") return t[sk] === overtimeSel;
           return true;
         });
@@ -1945,8 +1948,9 @@ function App() {
   }, [transactions, pFrom, pTo, selMonths]);
   const mTxs = useMemo(() => {
     const passType = (t) => t.isCredit || globalTypeFilter.includes(t.txType);
-    if (selMonths.length > 0) return transactions.filter((t) => selMonths.includes(t.date ? t.date.slice(0, 7) : "") && passType(t));
-    return transactions.filter((t) => t.date >= pFrom && t.date <= pTo && passType(t));
+    const inPeriod = transactions.filter((t) => t.date >= pFrom && t.date <= pTo && passType(t));
+    if (selMonths.length > 0) return inPeriod.filter((t) => selMonths.includes(t.date ? t.date.slice(0, 7) : ""));
+    return inPeriod;
   }, [transactions, pFrom, pTo, globalTypeFilter, selMonths]);
   const total = mTxs.reduce((s, t) => s + t.amount, 0);
   const change = null;

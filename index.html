@@ -892,121 +892,31 @@ function SettingsModal({ taxonomy, vendorMap, rawTxs, currency, onImport, onClos
   const [err, setErr] = useState("");
   const [status, setStatus] = useState("idle");
   const [msg, setMsg] = useState("");
-  const [fileName, setFileName] = useState(() => window.__ledgerFileName || "");
   const loadRef = React.useRef(null);
-  const hasNativeFS = typeof window !== "undefined" && "showSaveFilePicker" in window;
-  const done = status === "saved" || status === "loaded";
   function buildPayload() {
     return { version: 1, savedAt: (/* @__PURE__ */ new Date()).toISOString(), taxonomy, vendorMap, rawTxs, currency };
   }
-  async function browseFile() {
+  function saveToFile() {
     try {
-      const [handle] = await window.showOpenFilePicker({
-        types: [{ description: "Ledger JSON", accept: { "application/json": [".json"] } }],
-        multiple: false
-      });
-      window.__ledgerFileHandle = handle;
-      window.__ledgerFileName = handle.name;
-      setFileName(handle.name);
-      setErr("");
-      setStatus("idle");
-      setMsg("");
-    } catch (e) {
-      if (e.name === "AbortError") return;
-      try {
-        const handle = await window.showSaveFilePicker({
-          suggestedName: "ledger-data.json",
-          types: [{ description: "Ledger JSON", accept: { "application/json": [".json"] } }]
-        });
-        window.__ledgerFileHandle = handle;
-        window.__ledgerFileName = handle.name;
-        setFileName(handle.name);
-        setErr("");
-        setStatus("idle");
-        setMsg("");
-      } catch (e2) {
-        if (e2.name !== "AbortError") setErr(e2.message);
-      }
-    }
-  }
-  async function saveToFile() {
-    const payload = JSON.stringify(buildPayload(), null, 2);
-    if (!hasNativeFS) {
-      const name = window.__ledgerFileName || "ledger-data.json";
+      const payload = JSON.stringify(buildPayload(), null, 2);
       const b64 = btoa(unescape(encodeURIComponent(payload)));
       const a = document.createElement("a");
       a.href = "data:application/json;base64," + b64;
-      a.download = name;
+      a.download = "ledger-data.json";
       a.style.display = "none";
       document.body.appendChild(a);
       a.click();
       setTimeout(() => document.body.removeChild(a), 2e3);
       setStatus("saved");
-      setMsg("Downloaded " + name + " \u2014 go to Files app to move it to OneDrive");
-      return;
-    }
-    if (!window.__ledgerFileHandle) {
-      try {
-        const handle = await window.showSaveFilePicker({
-          suggestedName: "ledger-data.json",
-          types: [{ description: "Ledger JSON", accept: { "application/json": [".json"] } }]
-        });
-        window.__ledgerFileHandle = handle;
-        window.__ledgerFileName = handle.name;
-        setFileName(handle.name);
-      } catch (e) {
-        if (e.name !== "AbortError") setErr(e.message);
-        return;
-      }
-    }
-    try {
-      const writable = await window.__ledgerFileHandle.createWritable();
-      await writable.write(payload);
-      await writable.close();
-      setStatus("saved");
-      setMsg("Saved to " + window.__ledgerFileName + " \xB7 " + (/* @__PURE__ */ new Date()).toLocaleTimeString());
+      setMsg("Saved \u2014 ledger-data.json is in your iCloud Downloads folder");
     } catch (e) {
-      setErr(e.message);
-      setStatus("error");
-    }
-  }
-  async function loadFromFile() {
-    if (!hasNativeFS) {
-      if (loadRef.current) loadRef.current.click();
-      return;
-    }
-    if (!window.__ledgerFileHandle) {
-      setErr("Click Browse first to select your ledger-data.json file.");
-      return;
-    }
-    try {
-      const f = await window.__ledgerFileHandle.getFile();
-      const text = await f.text();
-      let p;
-      try {
-        p = JSON.parse(text);
-      } catch {
-        setErr("Not valid JSON.");
-        return;
-      }
-      if (!p.taxonomy || !p.rawTxs) {
-        setErr("Not a valid ledger-data.json.");
-        return;
-      }
-      onImport(p);
-      setStatus("loaded");
-      setMsg("Loaded " + p.rawTxs.length + " transactions from " + window.__ledgerFileName);
-    } catch (e) {
-      setErr(e.message);
-      setStatus("error");
+      setErr(e.message || "Save failed");
     }
   }
   function handleFileInput(e) {
     var _a;
     const file = (_a = e.target.files) == null ? void 0 : _a[0];
     if (!file) return;
-    window.__ledgerFileName = file.name;
-    setFileName(file.name);
     const reader = new FileReader();
     reader.onload = (ev) => {
       setErr("");
@@ -1028,26 +938,7 @@ function SettingsModal({ taxonomy, vendorMap, rawTxs, currency, onImport, onClos
     reader.onerror = () => setErr("Could not read file.");
     reader.readAsText(file);
   }
-  return /* @__PURE__ */ React.createElement("div", { style: { position: "fixed", inset: 0, background: "rgba(13,15,14,0.96)", zIndex: 500, display: "flex", alignItems: "center", justifyContent: "center", padding: "20px", overflowY: "auto" } }, /* @__PURE__ */ React.createElement("div", { style: { background: C.surface, border: `1px solid ${C.border}`, borderRadius: 20, padding: 24, maxWidth: 480, width: "100%" } }, /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "inherit", fontSize: 20, marginBottom: 12 } }, "Save & Load Data"), /* @__PURE__ */ React.createElement("div", { style: { background: C.s2, borderRadius: 12, padding: "10px 14px", marginBottom: 18, display: "flex", gap: 16, fontSize: 12, fontWeight: 500, color: C.muted, flexWrap: "wrap" } }, /* @__PURE__ */ React.createElement("span", null, "\u{1F4C1} ", rawTxs.length, " transactions"), /* @__PURE__ */ React.createElement("span", null, "\u{1F5C2} ", Object.keys(taxonomy).length, " categories"), /* @__PURE__ */ React.createElement("span", null, "\u{1F517} ", Object.keys(vendorMap).length, " mappings")), /* @__PURE__ */ React.createElement("div", { style: { marginBottom: 16 } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11, fontFamily: "monospace", color: C.dim, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 } }, hasNativeFS ? "1. Select file location" : "Your data file"), /* @__PURE__ */ React.createElement(
-    "div",
-    {
-      onClick: hasNativeFS ? browseFile : void 0,
-      style: {
-        display: "flex",
-        alignItems: "center",
-        gap: 12,
-        padding: "14px 16px",
-        borderRadius: 12,
-        border: `2px solid ${fileName ? C.accent : C.border}`,
-        background: fileName ? "rgba(62,180,137,0.06)" : C.bg,
-        cursor: hasNativeFS ? "pointer" : "default",
-        marginBottom: 6
-      }
-    },
-    /* @__PURE__ */ React.createElement("div", { style: { fontSize: 28, flexShrink: 0 } }, fileName ? "\u{1F4C4}" : "\u{1F4C1}"),
-    /* @__PURE__ */ React.createElement("div", { style: { flex: 1, minWidth: 0 } }, fileName ? /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 13, fontWeight: 600, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, fileName), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11, color: "#0e9e7a", marginTop: 2 } }, "\u2713 File selected \u2014 tap Save or Load below")) : /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 13, fontWeight: 600, color: hasNativeFS ? C.accent : C.muted } }, hasNativeFS ? "Tap here to browse to your file" : "File location"), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11, color: C.dim, marginTop: 2 } }, hasNativeFS ? "Navigate to your OneDrive or iCloud Drive folder and select ledger-data.json" : "Use Save or Load buttons below to access your file"))),
-    hasNativeFS && /* @__PURE__ */ React.createElement("div", { style: { fontSize: 12, color: fileName ? C.dim : C.accent, flexShrink: 0, fontWeight: 600 } }, fileName ? "Change" : "Browse \u2192")
-  ), !hasNativeFS && /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11, color: C.muted, lineHeight: 1.8, padding: "10px 12px", background: C.s2, borderRadius: 8 } }, /* @__PURE__ */ React.createElement("div", { style: { fontWeight: 700, color: C.text, marginBottom: 4 } }, "\u{1F4F1} iPhone workflow:"), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("strong", null, "1. Load first"), " \u2014 tap Load from File \u2192 navigate to your OneDrive folder \u2192 select ledger-data.json"), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("strong", null, "2. Save after changes"), " \u2014 tap Save to File \u2192 file downloads with the same name \u2192 go to Files app \u2192 move it back to OneDrive (replacing the old one)"))), hasNativeFS && /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11, fontFamily: "monospace", color: C.dim, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 } }, "2. Save or Load"), (status === "saved" || status === "loaded") && /* @__PURE__ */ React.createElement("div", { style: { marginBottom: 16, padding: "18px 20px", background: "rgba(42,157,111,0.08)", border: `2px solid ${C.accent}`, borderRadius: 14, textAlign: "center" } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 32, marginBottom: 6 } }, status === "saved" ? "\u{1F4BE}" : "\u{1F4C2}"), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 18, fontWeight: 800, color: "#0e9e7a", marginBottom: 4 } }, status === "saved" ? "File Saved" : "File Loaded"), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 12, fontWeight: 500, color: C.muted } }, msg)), (status === "error" || err) && /* @__PURE__ */ React.createElement("div", { style: { marginBottom: 16, padding: "18px 20px", background: "rgba(245,118,118,0.1)", border: "2px solid " + C.danger, borderRadius: 14, textAlign: "center" } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 28, marginBottom: 6 } }, "\u26A0\uFE0F"), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 16, fontWeight: 700, color: C.danger, marginBottom: 4 } }, "Error"), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 12, fontWeight: 500, color: C.muted } }, err || msg)), /* @__PURE__ */ React.createElement("input", { ref: loadRef, type: "file", accept: ".json,application/json", onChange: handleFileInput, style: { display: "none" } }), !(status === "saved" || status === "loaded") && /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 10, marginBottom: 12 } }, /* @__PURE__ */ React.createElement("button", { onClick: saveToFile, style: { ...btn(C.accent, "#fff", "none", 14, "13px 0"), flex: 1 } }, "\u{1F4BE} Save to File"), /* @__PURE__ */ React.createElement("button", { onClick: loadFromFile, style: { ...btn(C.accent, "#fff", "none", 14, "13px 0"), flex: 1 } }, "\u{1F4C2} Load from File")), (status === "saved" || status === "loaded") && /* @__PURE__ */ React.createElement("button", { onClick: onClose, style: { ...btn(C.accent, "#fff", "none", 16, "16px 0"), width: "100%", fontWeight: 700 } }, "\u2713 Done"), !(status === "saved" || status === "loaded") && /* @__PURE__ */ React.createElement("button", { onClick: onClose, style: { ...btn(C.s2, C.muted, `1px solid ${C.border}`, 13, "11px 0"), width: "100%" } }, "Close")));
+  return /* @__PURE__ */ React.createElement("div", { style: { position: "fixed", inset: 0, background: "rgba(13,15,14,0.96)", zIndex: 500, display: "flex", alignItems: "center", justifyContent: "center", padding: 20, overflowY: "auto" } }, /* @__PURE__ */ React.createElement("div", { style: { background: C.surface, border: `1px solid ${C.border}`, borderRadius: 20, padding: 24, maxWidth: 440, width: "100%" } }, /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "inherit", fontSize: 20, fontWeight: 700, marginBottom: 6 } }, "Save / Load Data"), /* @__PURE__ */ React.createElement("div", { style: { background: C.s2, borderRadius: 10, padding: "10px 14px", marginBottom: 20, display: "flex", gap: 16, fontSize: 12, fontWeight: 500, color: C.muted, flexWrap: "wrap" } }, /* @__PURE__ */ React.createElement("span", null, "\u{1F4C1} ", rawTxs.length, " transactions"), /* @__PURE__ */ React.createElement("span", null, "\u{1F5C2} ", Object.keys(taxonomy).length, " categories"), /* @__PURE__ */ React.createElement("span", null, "\u{1F517} ", Object.keys(vendorMap).length, " mappings")), status === "saved" && /* @__PURE__ */ React.createElement("div", { style: { marginBottom: 16, padding: "14px 16px", background: "rgba(42,157,111,0.08)", border: `2px solid ${C.accent}`, borderRadius: 12, textAlign: "center" } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 28, marginBottom: 4 } }, "\u{1F4BE}"), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 15, fontWeight: 700, color: "#0e9e7a", marginBottom: 4 } }, "Saved!"), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 12, color: C.muted } }, msg), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11, color: C.dim, marginTop: 8, lineHeight: 1.6 } }, "File is in ", /* @__PURE__ */ React.createElement("strong", null, "iCloud Drive \u2192 Downloads"), ".", /* @__PURE__ */ React.createElement("br", null), "Tip: in the Files app, move it to a permanent folder once \u2014 after that, always load from there.")), status === "loaded" && /* @__PURE__ */ React.createElement("div", { style: { marginBottom: 16, padding: "14px 16px", background: "rgba(42,157,111,0.08)", border: `2px solid ${C.accent}`, borderRadius: 12, textAlign: "center" } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 28, marginBottom: 4 } }, "\u{1F4C2}"), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 15, fontWeight: 700, color: "#0e9e7a", marginBottom: 4 } }, "Loaded!"), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 12, color: C.muted } }, msg)), (status === "error" || err) && /* @__PURE__ */ React.createElement("div", { style: { marginBottom: 16, padding: "14px 16px", background: "rgba(245,118,118,0.1)", border: `2px solid ${C.danger}`, borderRadius: 12, textAlign: "center" } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 13, color: C.danger } }, err || msg)), /* @__PURE__ */ React.createElement("input", { ref: loadRef, type: "file", accept: ".json,application/json", onChange: handleFileInput, style: { display: "none" } }), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 10, marginBottom: 14 } }, /* @__PURE__ */ React.createElement("button", { onClick: saveToFile, style: { ...btn(C.accent, "#fff", "none", 15, "15px 0"), width: "100%", fontWeight: 700 } }, "\u{1F4BE} Save \u2014 download ledger-data.json"), /* @__PURE__ */ React.createElement("button", { onClick: () => loadRef.current && loadRef.current.click(), style: { ...btn(C.s2, C.text, `1px solid ${C.border}`, 15, "15px 0"), width: "100%", fontWeight: 600 } }, "\u{1F4C2} Load \u2014 pick ledger-data.json from Files")), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11, color: C.dim, lineHeight: 1.7, padding: "10px 12px", background: C.s2, borderRadius: 8, marginBottom: 14 } }, /* @__PURE__ */ React.createElement("strong", { style: { color: C.muted } }, "Recommended workflow:"), /* @__PURE__ */ React.createElement("br", null), "1. First time: Save \u2192 in Files app, move ", /* @__PURE__ */ React.createElement("strong", null, "ledger-data.json"), " from Downloads to a folder of your choice (e.g. iCloud Drive \u2192 Home Ledger)", /* @__PURE__ */ React.createElement("br", null), "2. Every session: Load from that folder \u2192 make changes \u2192 Save \u2192 the new file lands in Downloads \u2192 move it back (replace)", /* @__PURE__ */ React.createElement("br", null), "3. Or: keep loading from Downloads if you don't mind it staying there"), /* @__PURE__ */ React.createElement("button", { onClick: onClose, style: { ...btn(C.s2, C.muted, `1px solid ${C.border}`, 13, "11px 0"), width: "100%" } }, "Close")));
 }
 function resolvePeriod(preset, customFrom, customTo) {
   const today = /* @__PURE__ */ new Date();
@@ -1818,6 +1709,235 @@ function VendorView({ transactions, currency, dispRates: dispRates2, pFrom, pTo,
     })));
   })(), selected.size === 0 && /* @__PURE__ */ React.createElement("div", { style: { ...card, padding: 32, textAlign: "center", color: C.dim, fontSize: 13 } }, "Select vendors above to see their spending breakdown"));
 }
+function BudgetTab({ transactions, taxonomy, budgets, setBudgets, displayCurrency }) {
+  var _a;
+  const [editCat, setEditCat] = useState(null);
+  const [editMonthly, setEditMonthly] = useState("");
+  const [editAnnual, setEditAnnual] = useState("");
+  const [viewMode, setViewMode] = useState("month");
+  const today = /* @__PURE__ */ new Date();
+  const thisMonthFrom = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10);
+  const thisMonthTo = today.toISOString().slice(0, 10);
+  const thisYearFrom = new Date(today.getFullYear(), 0, 1).toISOString().slice(0, 10);
+  const monthSpend = {};
+  const yearSpend = {};
+  transactions.filter((t) => !t.isCredit).forEach((t) => {
+    if (t.date >= thisYearFrom && t.date <= thisMonthTo) yearSpend[t.category] = (yearSpend[t.category] || 0) + t.amount;
+    if (t.date >= thisMonthFrom && t.date <= thisMonthTo) monthSpend[t.category] = (monthSpend[t.category] || 0) + t.amount;
+  });
+  const cats = Object.keys(taxonomy).filter((c) => c !== "Income");
+  const budgetedCats = cats.filter((c) => budgets[c] && (budgets[c].monthly || budgets[c].annual));
+  const unbudgetedCats = cats.filter((c) => !budgets[c] || !budgets[c].monthly && !budgets[c].annual);
+  function openEdit(cat) {
+    var _a2, _b;
+    setEditCat(cat);
+    setEditMonthly(((_a2 = budgets[cat]) == null ? void 0 : _a2.monthly) ? String(budgets[cat].monthly) : "");
+    setEditAnnual(((_b = budgets[cat]) == null ? void 0 : _b.annual) ? String(budgets[cat].annual) : "");
+  }
+  function saveEdit() {
+    const m = parseFloat(editMonthly) || 0;
+    const a = parseFloat(editAnnual) || 0;
+    if (!m && !a) {
+      setBudgets((prev) => {
+        const n = { ...prev };
+        delete n[editCat];
+        return n;
+      });
+    } else {
+      setBudgets((prev) => ({ ...prev, [editCat]: { monthly: m || Math.round(a / 12), annual: a || m * 12 } }));
+    }
+    setEditCat(null);
+  }
+  function BudgetCard({ cat }) {
+    const b = budgets[cat] || {};
+    const budget = viewMode === "month" ? b.monthly || 0 : b.annual || 0;
+    const spent = viewMode === "month" ? monthSpend[cat] || 0 : yearSpend[cat] || 0;
+    const pct = budget > 0 ? Math.min(100, spent / budget * 100) : 0;
+    const over = spent > budget && budget > 0;
+    const warn = pct >= 80 && !over;
+    const barCol = over ? "#d94040" : warn ? "#f59e0b" : C.accent;
+    const cd = taxonomy[cat];
+    return /* @__PURE__ */ React.createElement("div", { style: { background: C.surface, borderRadius: 14, padding: "16px 18px", marginBottom: 10, border: `1px solid ${over ? "#d9404033" : warn ? "#f59e0b33" : C.border}` } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8 } }, /* @__PURE__ */ React.createElement("div", { style: { width: 28, height: 28, borderRadius: 8, background: readableColour((cd == null ? void 0 : cd.color) || "#888") + "22", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14 } }, (cd == null ? void 0 : cd.icon) || "\u{1F4E6}"), /* @__PURE__ */ React.createElement("span", { style: { fontSize: 14, fontWeight: 700, color: C.text } }, cat)), /* @__PURE__ */ React.createElement("button", { onClick: () => openEdit(cat), style: btn(C.s2, C.muted, `1px solid ${C.border}`, 11, "3px 9px") }, "\u270F\uFE0F Edit")), /* @__PURE__ */ React.createElement("div", { style: { height: 8, borderRadius: 4, background: C.s2, marginBottom: 8, overflow: "hidden" } }, /* @__PURE__ */ React.createElement("div", { style: { height: "100%", width: pct + "%", background: barCol, borderRadius: 4, transition: "width 0.4s" } })), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", justifyContent: "space-between", fontSize: 12 } }, /* @__PURE__ */ React.createElement("span", { style: { color: barCol, fontWeight: 700 } }, over ? "\u26A0\uFE0F Over budget" : warn ? "\u{1F536} " + Math.round(pct) + "% used" : "" + Math.round(pct) + "% used"), /* @__PURE__ */ React.createElement("span", { style: { color: C.muted, fontFamily: "monospace" } }, fmt(spent), " / ", fmt(budget))), over && /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11, color: "#d94040", marginTop: 4, fontWeight: 600 } }, "Over by ", fmt(spent - budget), " (", Math.round((spent / budget - 1) * 100), "%)"));
+  }
+  return /* @__PURE__ */ React.createElement("div", null, editCat && /* @__PURE__ */ React.createElement("div", { style: { position: "fixed", inset: 0, background: "rgba(13,15,14,0.96)", zIndex: 600, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 } }, /* @__PURE__ */ React.createElement("div", { style: { background: C.surface, borderRadius: 20, padding: 24, maxWidth: 400, width: "100%" } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 18, fontWeight: 700, marginBottom: 4 } }, (_a = taxonomy[editCat]) == null ? void 0 : _a.icon, " ", editCat), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 12, color: C.muted, marginBottom: 20 } }, "Enter 0 or leave blank to remove budget"), /* @__PURE__ */ React.createElement("div", { style: { marginBottom: 14 } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11, color: C.dim, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 } }, "Monthly Budget (", displayCurrency, ")"), /* @__PURE__ */ React.createElement("input", { type: "number", value: editMonthly, onChange: (e) => {
+    setEditMonthly(e.target.value);
+    if (e.target.value) setEditAnnual(String(Math.round(parseFloat(e.target.value) || 0) * 12));
+  }, placeholder: "e.g. 2000", style: { ...inp(), fontSize: 15, fontFamily: "monospace" } })), /* @__PURE__ */ React.createElement("div", { style: { marginBottom: 20 } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11, color: C.dim, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 } }, "Annual Budget (", displayCurrency, ")"), /* @__PURE__ */ React.createElement("input", { type: "number", value: editAnnual, onChange: (e) => {
+    setEditAnnual(e.target.value);
+    if (e.target.value) setEditMonthly(String(Math.round((parseFloat(e.target.value) || 0) / 12)));
+  }, placeholder: "e.g. 24000", style: { ...inp(), fontSize: 15, fontFamily: "monospace" } })), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11, color: C.dim, marginBottom: 16 } }, "Editing one auto-calculates the other"), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 10 } }, /* @__PURE__ */ React.createElement("button", { onClick: saveEdit, style: { ...btn(C.accent, "#fff", "none", 14, "12px 0"), flex: 1 } }, "\u2713 Save"), /* @__PURE__ */ React.createElement("button", { onClick: () => setEditCat(null), style: btn(C.s2, C.muted, `1px solid ${C.border}`, 13, "12px 16px") }, "Cancel")))), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 8, marginBottom: 16 } }, /* @__PURE__ */ React.createElement("button", { onClick: () => setViewMode("month"), style: { flex: 1, padding: "9px 0", borderRadius: 10, border: `1px solid ${viewMode === "month" ? C.accent : C.border}`, background: viewMode === "month" ? "rgba(42,157,111,0.08)" : "transparent", color: viewMode === "month" ? C.accent : C.muted, fontSize: 13, fontWeight: viewMode === "month" ? 700 : 500, cursor: "pointer", fontFamily: "inherit" } }, "This Month"), /* @__PURE__ */ React.createElement("button", { onClick: () => setViewMode("year"), style: { flex: 1, padding: "9px 0", borderRadius: 10, border: `1px solid ${viewMode === "year" ? C.accent : C.border}`, background: viewMode === "year" ? "rgba(42,157,111,0.08)" : "transparent", color: viewMode === "year" ? C.accent : C.muted, fontSize: 13, fontWeight: viewMode === "year" ? 700 : 500, cursor: "pointer", fontFamily: "inherit" } }, "This Year")), budgetedCats.length > 0 && /* @__PURE__ */ React.createElement("div", { style: { marginBottom: 20 } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11, color: C.dim, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10, fontWeight: 700 } }, "Budget Tracking"), budgetedCats.map((cat) => /* @__PURE__ */ React.createElement(BudgetCard, { key: cat, cat }))), budgetedCats.length > 0 && (() => {
+    const totalBudget = budgetedCats.reduce((s, c) => {
+      var _a2, _b;
+      return s + (viewMode === "month" ? ((_a2 = budgets[c]) == null ? void 0 : _a2.monthly) || 0 : ((_b = budgets[c]) == null ? void 0 : _b.annual) || 0);
+    }, 0);
+    const totalSpent = budgetedCats.reduce((s, c) => s + (viewMode === "month" ? monthSpend[c] || 0 : yearSpend[c] || 0), 0);
+    const pct = totalBudget > 0 ? Math.min(100, totalSpent / totalBudget * 100) : 0;
+    const over = totalSpent > totalBudget && totalBudget > 0;
+    return /* @__PURE__ */ React.createElement("div", { style: { background: over ? "rgba(217,64,64,0.06)" : "rgba(42,157,111,0.06)", borderRadius: 14, padding: "14px 18px", marginBottom: 20, border: `1px solid ${over ? "#d9404033" : C.accent + "33"}` } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 12, fontWeight: 700, color: C.muted, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 } }, "Total ", viewMode === "month" ? "Monthly" : "Annual"), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center" } }, /* @__PURE__ */ React.createElement("span", { style: { fontSize: 20, fontWeight: 800, color: over ? "#d94040" : C.accent } }, fmt(totalSpent)), /* @__PURE__ */ React.createElement("span", { style: { fontSize: 13, color: C.muted, fontFamily: "monospace" } }, "of ", fmt(totalBudget))), /* @__PURE__ */ React.createElement("div", { style: { height: 6, borderRadius: 3, background: C.s2, marginTop: 10, overflow: "hidden" } }, /* @__PURE__ */ React.createElement("div", { style: { height: "100%", width: pct + "%", background: over ? "#d94040" : C.accent, borderRadius: 3 } })));
+  })(), /* @__PURE__ */ React.createElement("div", { style: { marginBottom: 10 } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11, color: C.dim, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10, fontWeight: 700 } }, budgetedCats.length === 0 ? "Set Budgets \u2014 tap a category" : "No Budget Set"), unbudgetedCats.map((cat) => {
+    var _a2, _b;
+    return /* @__PURE__ */ React.createElement("div", { key: cat, onClick: () => openEdit(cat), style: { background: C.surface, borderRadius: 12, padding: "12px 16px", marginBottom: 8, border: `1px solid ${C.border}`, display: "flex", alignItems: "center", gap: 10, cursor: "pointer" } }, /* @__PURE__ */ React.createElement("div", { style: { width: 26, height: 26, borderRadius: 7, background: readableColour(((_a2 = taxonomy[cat]) == null ? void 0 : _a2.color) || "#888") + "22", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, flexShrink: 0 } }, ((_b = taxonomy[cat]) == null ? void 0 : _b.icon) || "\u{1F4E6}"), /* @__PURE__ */ React.createElement("span", { style: { flex: 1, fontSize: 13, fontWeight: 500, color: C.muted } }, cat), /* @__PURE__ */ React.createElement("span", { style: { fontSize: 12, color: C.accent, fontWeight: 600 } }, "+ Set budget \u2192"));
+  })));
+}
+function WatchOutTab({ transactions, taxonomy, spikeThreshold, setSpikeThreshold, showSpikeSettings, setShowSpikeSettings, displayCurrency, onDrillTxs }) {
+  const today = /* @__PURE__ */ new Date();
+  const thisMonthFrom = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10);
+  const thisMonthTo = today.toISOString().slice(0, 10);
+  const lastMonthFrom = new Date(today.getFullYear(), today.getMonth() - 1, 1).toISOString().slice(0, 10);
+  const lastMonthTo = new Date(today.getFullYear(), today.getMonth(), 0).toISOString().slice(0, 10);
+  const [thresholdInput, setThresholdInput] = useState(String(spikeThreshold));
+  const [drillMode, setDrillMode] = useState("categories");
+  function calcSpend(from, to, key) {
+    const result = {};
+    transactions.filter((t) => !t.isCredit && t.date >= from && t.date <= to).forEach((t) => {
+      result[t[key]] = (result[t[key]] || 0) + t.amount;
+    });
+    return result;
+  }
+  const thisCat = calcSpend(thisMonthFrom, thisMonthTo, "category");
+  const lastCat = calcSpend(lastMonthFrom, lastMonthTo, "category");
+  const thisSub = calcSpend(thisMonthFrom, thisMonthTo, "subcategory");
+  const lastSub = calcSpend(lastMonthFrom, lastMonthTo, "subcategory");
+  function findSpikes(thisSpend, lastSpend) {
+    return Object.entries(thisSpend).filter(([k]) => k && k !== "Income").map(([k, thisAmt]) => {
+      const lastAmt = lastSpend[k] || 0;
+      const change = lastAmt > 0 ? (thisAmt - lastAmt) / lastAmt * 100 : null;
+      const isNew = lastAmt === 0 && thisAmt > 0;
+      const isSpike = isNew || change !== null && change >= spikeThreshold;
+      return { key: k, thisAmt, lastAmt, change, isNew, isSpike };
+    }).filter((r) => r.isSpike).sort((a, b) => b.thisAmt - b.lastAmt - (a.thisAmt - a.lastAmt));
+  }
+  const catSpikes = findSpikes(thisCat, lastCat);
+  const subSpikes = findSpikes(thisSub, lastSub);
+  const spikes = drillMode === "categories" ? catSpikes : subSpikes;
+  function findDrops(thisSpend, lastSpend) {
+    return Object.entries(lastSpend).filter(([k]) => k && k !== "Income").map(([k, lastAmt]) => {
+      const thisAmt = thisSpend[k] || 0;
+      const change = (thisAmt - lastAmt) / lastAmt * 100;
+      return { key: k, thisAmt, lastAmt, change };
+    }).filter((r) => r.change <= -spikeThreshold).sort((a, b) => a.change - b.change);
+  }
+  const catDrops = findDrops(thisCat, lastCat);
+  const subDrops = findDrops(thisSub, lastSub);
+  const drops = drillMode === "categories" ? catDrops : subDrops;
+  const fmtM2 = (m) => {
+    if (!m) return "";
+    const [y, mo] = m.split("-");
+    const names = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    return names[parseInt(mo) - 1] + " " + y.slice(2);
+  };
+  const thisMonthLabel = fmtM2(thisMonthFrom.slice(0, 7));
+  const lastMonthLabel = fmtM2(lastMonthFrom.slice(0, 7));
+  function SpikeCard({ item, isSpike }) {
+    const cd = taxonomy[item.key];
+    const changeAbs = Math.abs(item.change || 0);
+    const color = isSpike ? "#d94040" : "#1a7a3a";
+    const bgColor = isSpike ? "rgba(217,64,64,0.05)" : "rgba(26,122,58,0.05)";
+    const borderColor = isSpike ? "#d9404022" : "#1a7a3a22";
+    return /* @__PURE__ */ React.createElement(
+      "div",
+      {
+        onClick: () => {
+          const sk = drillMode === "categories" ? "category" : "subcategory";
+          const txs = transactions.filter((t) => !t.isCredit && t.date >= thisMonthFrom && t.date <= thisMonthTo && t[sk] === item.key);
+          if (txs.length) onDrillTxs(txs, item.key + " \xB7 " + thisMonthLabel);
+        },
+        style: { background: bgColor, borderRadius: 14, padding: "14px 16px", marginBottom: 10, border: `1px solid ${borderColor}`, cursor: "pointer" }
+      },
+      /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8 } }, cd && /* @__PURE__ */ React.createElement("div", { style: { width: 26, height: 26, borderRadius: 7, background: readableColour(cd.color || "#888") + "22", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, flexShrink: 0 } }, cd.icon || "\u{1F4E6}"), /* @__PURE__ */ React.createElement("span", { style: { fontSize: 14, fontWeight: 700, color: C.text } }, item.key)), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 6 } }, item.isNew ? /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, fontWeight: 700, color, background: color + "15", padding: "2px 8px", borderRadius: 20 } }, "NEW") : /* @__PURE__ */ React.createElement("span", { style: { fontSize: 13, fontWeight: 800, color } }, isSpike ? "\u2191" : "\u2193", Math.round(changeAbs), "%"))),
+      /* @__PURE__ */ React.createElement("div", { style: { display: "flex", justifyContent: "space-between", fontSize: 12, color: C.muted } }, /* @__PURE__ */ React.createElement("span", null, lastMonthLabel, ": ", /* @__PURE__ */ React.createElement("strong", { style: { fontFamily: "monospace", color: C.text } }, item.lastAmt > 0 ? fmt(item.lastAmt) : "\u2014")), /* @__PURE__ */ React.createElement("span", null, thisMonthLabel, ": ", /* @__PURE__ */ React.createElement("strong", { style: { fontFamily: "monospace", color } }, fmt(item.thisAmt)))),
+      !item.isNew && /* @__PURE__ */ React.createElement("div", { style: { marginTop: 8, height: 3, borderRadius: 3, background: C.s2, overflow: "hidden" } }, /* @__PURE__ */ React.createElement("div", { style: { height: "100%", width: Math.min(100, item.thisAmt / Math.max(item.thisAmt, item.lastAmt) * 100) + "%", background: color, borderRadius: 3 } })),
+      /* @__PURE__ */ React.createElement("div", { style: { fontSize: 10, color: C.dim, marginTop: 6 } }, "Tap to see transactions \u2192")
+    );
+  }
+  return /* @__PURE__ */ React.createElement("div", null, showSpikeSettings && /* @__PURE__ */ React.createElement("div", { style: { position: "fixed", inset: 0, background: "rgba(13,15,14,0.96)", zIndex: 600, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 } }, /* @__PURE__ */ React.createElement("div", { style: { background: C.surface, borderRadius: 20, padding: 24, maxWidth: 380, width: "100%" } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 18, fontWeight: 700, marginBottom: 6 } }, "Spike Threshold"), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 13, color: C.muted, marginBottom: 20, lineHeight: 1.6 } }, "Categories are flagged as a spike when this month's spend is more than this % above last month."), /* @__PURE__ */ React.createElement("div", { style: { marginBottom: 20 } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11, color: C.dim, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 } }, "Variance % threshold"), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10 } }, /* @__PURE__ */ React.createElement(
+    "input",
+    {
+      type: "number",
+      value: thresholdInput,
+      onChange: (e) => setThresholdInput(e.target.value),
+      min: "5",
+      max: "500",
+      step: "5",
+      style: { ...inp(), fontSize: 20, fontFamily: "monospace", fontWeight: 700, width: 100, textAlign: "center" }
+    }
+  ), /* @__PURE__ */ React.createElement("span", { style: { fontSize: 18, color: C.muted } }, "%")), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" } }, [10, 20, 25, 50, 100].map((v) => /* @__PURE__ */ React.createElement("button", { key: v, onClick: () => setThresholdInput(String(v)), style: { padding: "5px 14px", borderRadius: 20, border: `1px solid ${thresholdInput === String(v) ? C.accent : C.border}`, background: thresholdInput === String(v) ? "rgba(42,157,111,0.1)" : "transparent", color: thresholdInput === String(v) ? C.accent : C.muted, fontSize: 12, cursor: "pointer", fontFamily: "inherit", fontWeight: thresholdInput === String(v) ? 700 : 400 } }, v, "%")))), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 10 } }, /* @__PURE__ */ React.createElement("button", { onClick: () => {
+    const v = parseInt(thresholdInput) || 20;
+    setSpikeThreshold(v);
+    setShowSpikeSettings(false);
+  }, style: { ...btn(C.accent, "#fff", "none", 14, "12px 0"), flex: 1 } }, "\u2713 Save"), /* @__PURE__ */ React.createElement("button", { onClick: () => setShowSpikeSettings(false), style: btn(C.s2, C.muted, `1px solid ${C.border}`, 13, "12px 16px") }, "Cancel")))), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 } }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 15, fontWeight: 700, color: C.text } }, "vs Last Month"), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11, color: C.dim } }, lastMonthLabel, " \u2192 ", thisMonthLabel)), /* @__PURE__ */ React.createElement("button", { onClick: () => setShowSpikeSettings(true), style: btn(C.s2, C.muted, `1px solid ${C.border}`, 11, "5px 10px") }, "\u2699\uFE0F Threshold: ", spikeThreshold, "%")), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 8, marginBottom: 16 } }, /* @__PURE__ */ React.createElement("button", { onClick: () => setDrillMode("categories"), style: { flex: 1, padding: "8px 0", borderRadius: 10, border: `1px solid ${drillMode === "categories" ? C.accent : C.border}`, background: drillMode === "categories" ? "rgba(42,157,111,0.08)" : "transparent", color: drillMode === "categories" ? C.accent : C.muted, fontSize: 12, fontWeight: drillMode === "categories" ? 700 : 500, cursor: "pointer", fontFamily: "inherit" } }, "Categories"), /* @__PURE__ */ React.createElement("button", { onClick: () => setDrillMode("subcategories"), style: { flex: 1, padding: "8px 0", borderRadius: 10, border: `1px solid ${drillMode === "subcategories" ? C.accent : C.border}`, background: drillMode === "subcategories" ? "rgba(42,157,111,0.08)" : "transparent", color: drillMode === "subcategories" ? C.accent : C.muted, fontSize: 12, fontWeight: drillMode === "subcategories" ? 700 : 500, cursor: "pointer", fontFamily: "inherit" } }, "Subcategories")), spikes.length > 0 ? /* @__PURE__ */ React.createElement("div", { style: { marginBottom: 20 } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11, color: "#d94040", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10, fontWeight: 700 } }, "\u26A0\uFE0F Spikes (", spikes.length, ") \u2014 up ", spikeThreshold, "%+ vs last month"), spikes.map((item) => /* @__PURE__ */ React.createElement(SpikeCard, { key: item.key, item, isSpike: true }))) : /* @__PURE__ */ React.createElement("div", { style: { background: C.s2, borderRadius: 12, padding: "20px", textAlign: "center", marginBottom: 20 } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 28, marginBottom: 8 } }, "\u2705"), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 14, fontWeight: 600, color: C.text } }, "No spikes this month"), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 12, color: C.dim, marginTop: 4 } }, "All categories within ", spikeThreshold, "% of last month")), drops.length > 0 && /* @__PURE__ */ React.createElement("div", { style: { marginBottom: 20 } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11, color: "#1a7a3a", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10, fontWeight: 700 } }, "\u2705 Reductions (", drops.length, ") \u2014 down ", spikeThreshold, "%+ vs last month"), drops.map((item) => /* @__PURE__ */ React.createElement(SpikeCard, { key: item.key, item, isSpike: false }))), spikes.length === 0 && drops.length === 0 && /* @__PURE__ */ React.createElement("div", { style: { textAlign: "center", color: C.dim, fontSize: 13, padding: 20 } }, "Not enough data to compare \u2014 need transactions in both this month and last month."));
+}
+function SummaryTab({ transactions, taxonomy, displayCurrency, dispRates: dispRates2 }) {
+  const today = /* @__PURE__ */ new Date();
+  const toISO = (d) => new Date(d).toISOString().slice(0, 10);
+  const todayStr = toISO(today);
+  const periods = [
+    {
+      label: "Today",
+      from: todayStr,
+      to: todayStr
+    },
+    {
+      label: "This Week",
+      from: toISO(new Date(today.getFullYear(), today.getMonth(), today.getDate() - (today.getDay() || 7) + 1)),
+      to: todayStr
+    },
+    {
+      label: "This Month",
+      from: toISO(new Date(today.getFullYear(), today.getMonth(), 1)),
+      to: todayStr
+    },
+    {
+      label: "Last Month",
+      from: toISO(new Date(today.getFullYear(), today.getMonth() - 1, 1)),
+      to: toISO(new Date(today.getFullYear(), today.getMonth(), 0))
+    },
+    {
+      label: "This Year",
+      from: toISO(new Date(today.getFullYear(), 0, 1)),
+      to: todayStr
+    },
+    {
+      label: "Last Year",
+      from: toISO(new Date(today.getFullYear() - 1, 0, 1)),
+      to: toISO(new Date(today.getFullYear() - 1, 11, 31))
+    },
+    {
+      label: "All Time",
+      from: "2000-01-01",
+      to: "2099-12-31"
+    }
+  ];
+  function calcPeriod(from, to) {
+    const txs = transactions.filter((t) => t.date >= from && t.date <= to);
+    const income = txs.filter((t) => t.isCredit && t.category === "Income").reduce((s, t) => s + t.amount, 0);
+    const expense = txs.filter((t) => !t.isCredit).reduce((s, t) => s + t.amount, 0);
+    const net = income - expense;
+    const txCount = txs.length;
+    return { income, expense, net, txCount };
+  }
+  const accentGreen = "#1a7a3a";
+  const expenseRed = "#d94040";
+  return /* @__PURE__ */ React.createElement("div", { style: { padding: "0 0 24px 0" } }, periods.map((p, i) => {
+    const { income, expense, net, txCount } = calcPeriod(p.from, p.to);
+    const hasData = txCount > 0;
+    const netPos = net >= 0;
+    return /* @__PURE__ */ React.createElement("div", { key: i, style: {
+      background: C.surface,
+      borderRadius: 16,
+      padding: "18px 20px",
+      marginBottom: 12,
+      border: `1px solid ${C.border}`,
+      opacity: hasData ? 1 : 0.45
+    } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 13, fontWeight: 700, color: C.muted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 14 } }, p.label), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8 } }, /* @__PURE__ */ React.createElement("div", { style: { width: 10, height: 10, borderRadius: "50%", background: accentGreen, flexShrink: 0 } }), /* @__PURE__ */ React.createElement("span", { style: { fontSize: 14, color: C.muted, fontWeight: 500 } }, "Income")), /* @__PURE__ */ React.createElement("span", { style: { fontFamily: "monospace", fontSize: 15, fontWeight: 700, color: accentGreen } }, hasData ? fmt(income, displayCurrency) : "\u2014")), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", paddingBottom: 12, borderBottom: `1px solid ${C.border}`, marginBottom: 12 } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8 } }, /* @__PURE__ */ React.createElement("div", { style: { width: 10, height: 10, borderRadius: "50%", background: expenseRed, flexShrink: 0 } }), /* @__PURE__ */ React.createElement("span", { style: { fontSize: 14, color: C.muted, fontWeight: 500 } }, "Expenses")), /* @__PURE__ */ React.createElement("span", { style: { fontFamily: "monospace", fontSize: 15, fontWeight: 700, color: expenseRed } }, hasData ? fmt(expense, displayCurrency) : "\u2014")), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center" } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8 } }, /* @__PURE__ */ React.createElement("div", { style: { width: 10, height: 10, borderRadius: 3, background: netPos ? accentGreen : expenseRed, flexShrink: 0 } }), /* @__PURE__ */ React.createElement("span", { style: { fontSize: 14, color: C.text, fontWeight: 700 } }, "Net")), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8 } }, hasData && /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, color: C.dim, fontFamily: "monospace" } }, txCount, " txns"), /* @__PURE__ */ React.createElement("span", { style: { fontFamily: "monospace", fontSize: 17, fontWeight: 800, color: hasData ? netPos ? accentGreen : expenseRed : C.dim } }, hasData ? (netPos ? "+" : "") + fmt(net, displayCurrency) : "No data"))), hasData && income > 0 && /* @__PURE__ */ React.createElement("div", { style: { marginTop: 12, height: 4, borderRadius: 4, background: C.s2, overflow: "hidden" } }, /* @__PURE__ */ React.createElement("div", { style: {
+      height: "100%",
+      width: Math.min(100, income / (income + expense) * 100) + "%",
+      background: accentGreen,
+      borderRadius: 4,
+      transition: "width 0.4s ease"
+    } })));
+  }));
+}
 function ManualEntryModal({ onImport, taxonomy, onClose }) {
   var _a;
   const [date, setDate] = useState((/* @__PURE__ */ new Date()).toISOString().slice(0, 10));
@@ -1872,13 +1992,25 @@ function App() {
   const [vendorMap, setVendorMapRaw] = useState({});
   const [rawTxs, setRawTxsRaw] = useState(RAW_SEED);
   const [period, setPeriod] = useState({ preset: "this_month", from: "", to: "" });
-  const [tab, setTab] = useState("overview");
+  const [tab, setTab] = useState("summary");
   const [txFilter, setTxFilter] = useState("all");
   const [txSort, setTxSort] = useState("amount");
   const [txSearch, setTxSearch] = useState("");
   const [txCatFilter, setTxCatFilter] = useState("all");
   const [dupesMode, setDupesMode] = useState(false);
   const [editingTx, setEditingTx] = useState(null);
+  const [budgets, setBudgetsRaw] = useState({});
+  const setBudgets = (v) => {
+    const n = typeof v === "function" ? v(budgets) : v;
+    setBudgetsRaw(n);
+    storeSave("ledger-budgets", n);
+  };
+  const [spikeThreshold, setSpikeThresholdRaw] = useState(20);
+  const setSpikeThreshold = (v) => {
+    setSpikeThresholdRaw(v);
+    storeSave("ledger-spike-threshold", v);
+  };
+  const [showSpikeSettings, setShowSpikeSettings] = useState(false);
   const [importMsg, setImportMsg] = useState(null);
   const [avgMode, setAvgMode] = useState(false);
   const [selMonths, setSelMonths] = useState([]);
@@ -1916,6 +2048,10 @@ function App() {
     const txs = storeLoad("ledger-rawtxs");
     const cur = storeLoad("ledger-currency");
     if (tax) setTaxonomyRaw({ ...DEFAULT_TAXONOMY, ...tax });
+    const budg = storeLoad("ledger-budgets");
+    if (budg) setBudgetsRaw(budg);
+    const spike = storeLoad("ledger-spike-threshold");
+    if (spike != null) setSpikeThresholdRaw(spike);
     if (vmap) setVendorMapRaw(vmap);
     if (txs && txs.length) setRawTxsRaw(txs);
     if (cur) setCurrency(cur);
@@ -2104,8 +2240,8 @@ function App() {
     else sorted.sort((a, b) => (b.date || "").localeCompare(a.date || ""));
     return sorted;
   }, [mTxs, txFilter, txSort, txSearch, txCatFilter, txSubFilter, dupesMode, selTxs]);
-  const TABS = [["overview", "\u{1F4CA}"], ["categories", "\u{1F3F7}\uFE0F"], ["subcategories", "\u{1F516}"], ["transactions", "\u{1F4CB}"], ["vendors", "\u{1F3EA}"]];
-  const TAB_LABELS = { overview: "Overview", categories: "Categories", subcategories: "Subcategories", transactions: "Transactions", vendors: "Vendors" };
+  const TABS = [["summary", "\u{1F4CB}"], ["overview", "\u{1F4CA}"], ["budget", "\u{1F3AF}"], ["watchout", "\u26A0\uFE0F"], ["categories", "\u{1F3F7}\uFE0F"], ["subcategories", "\u{1F516}"], ["transactions", "\u{1F4B3}"], ["vendors", "\u{1F3EA}"]];
+  const TAB_LABELS = { summary: "Summary", overview: "Overview", budget: "Budget", watchout: "Watch-Out", categories: "Categories", subcategories: "Subcategories", transactions: "Transactions", vendors: "Vendors" };
   if (!loaded) return /* @__PURE__ */ React.createElement("div", { style: { minHeight: "100vh", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center", color: C.muted, fontSize: 14 } }, "Loading\u2026");
   return /* @__PURE__ */ React.createElement("div", { style: { minHeight: "100vh", background: C.bg, color: C.text, fontFamily: "inherit", paddingBottom: 90 } }, /* @__PURE__ */ React.createElement("style", null, `*{box-sizing:border-box;margin:0;padding:0;}select,input,textarea,button{font-family:inherit;} body{background:#f4f6f9;}`), modal === "import" && /* @__PURE__ */ React.createElement(ImportModal, { onImport: handleImport, onClose: () => setModal(null) }), modal === "manual" && /* @__PURE__ */ React.createElement(ManualEntryModal, { onImport: handleImport, taxonomy, onClose: () => setModal(null) }), modal === "manage" && /* @__PURE__ */ React.createElement(ManageModal, { taxonomy, setTaxonomy, vendorMap, setVendorMap, rawTxs, setRawTxs, onClose: () => {
     setModal(null);
@@ -2117,7 +2253,7 @@ function App() {
     setRemapTx(tx);
     setDrillOverlay(null);
     setModal("remap");
-  }, onClose: () => setDrillOverlay(null) }), /* @__PURE__ */ React.createElement("div", { style: { padding: "10px 18px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: `1px solid ${C.border}`, position: "sticky", top: 0, background: "rgba(238,240,244,0.97)", backdropFilter: "blur(12px)", boxShadow: "0 1px 8px rgba(0,0,0,0.10)", zIndex: 100 } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center" } }, /* @__PURE__ */ React.createElement("img", { src: "logo.png", alt: "Home Ledger", style: { height: 64, width: "auto", objectFit: "contain", filter: "saturate(1.4) brightness(0.92) contrast(1.05)" } })), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" } }, /* @__PURE__ */ React.createElement("select", { value: displayCurrency, onChange: (e) => setDisplayCurrency(e.target.value), style: { background: C.s2, border: `1px solid ${C.border}`, borderRadius: 8, color: C.muted, padding: "6px 10px", fontSize: 12, fontFamily: "monospace", outline: "none" } }, ["AED", "GBP", "USD", "EUR", "SAR", "INR"].map((c) => /* @__PURE__ */ React.createElement("option", { key: c }, c))), /* @__PURE__ */ React.createElement("button", { onClick: () => setModal("settings"), style: btn(C.s2, C.muted, `1px solid ${C.border}`, 12, "8px 10px") }, "\u{1F4BE} Save / Load"), /* @__PURE__ */ React.createElement("button", { onClick: () => setModal("export"), style: btn(C.s2, C.muted, `1px solid ${C.border}`, 12, "8px 10px") }, "\u2B07 Excel"), /* @__PURE__ */ React.createElement("button", { onClick: () => setModal("manage"), style: btn(C.s2, C.muted, `1px solid ${C.border}`, 12, "8px 10px") }, "\u2699 Config Data"), /* @__PURE__ */ React.createElement("button", { onClick: () => setModal("import"), style: { ...btn(C.s2, C.muted, `1px solid ${C.border}`, 12, "8px 12px"), marginRight: 6 } }, "\u{1F4C1} Load Data"), /* @__PURE__ */ React.createElement("button", { onClick: () => setModal("manual"), style: btn(C.accent, "#fff", "none", 12, "8px 12px") }, "\u270F\uFE0F Input Data"))), /* @__PURE__ */ React.createElement("div", { style: { maxWidth: 1100, margin: "0 auto", padding: "20px 16px" } }, /* @__PURE__ */ React.createElement("div", { style: { marginBottom: 16 } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center", marginBottom: period.preset === "custom" ? 10 : 6 } }, [["all", "All"], ["this_year", "This Year"], ["last_year", "Last Year"], ["this_month", "This Month"], ["last_month", "Last Month"], ["custom", "Custom"]].map(([v, l]) => /* @__PURE__ */ React.createElement("button", { key: v, onClick: () => {
+  }, onClose: () => setDrillOverlay(null) }), /* @__PURE__ */ React.createElement("div", { style: { padding: "10px 18px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: `1px solid ${C.border}`, position: "sticky", top: 0, background: "rgba(238,240,244,0.97)", backdropFilter: "blur(12px)", boxShadow: "0 1px 8px rgba(0,0,0,0.10)", zIndex: 100 } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center" } }, /* @__PURE__ */ React.createElement("img", { src: "logo.png", alt: "Home Ledger", style: { height: 64, width: "auto", objectFit: "contain", filter: "saturate(1.4) brightness(0.92) contrast(1.05)" } })), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" } }, /* @__PURE__ */ React.createElement("select", { value: displayCurrency, onChange: (e) => setDisplayCurrency(e.target.value), style: { background: C.s2, border: `1px solid ${C.border}`, borderRadius: 8, color: C.muted, padding: "6px 10px", fontSize: 12, fontFamily: "monospace", outline: "none" } }, ["AED", "GBP", "USD", "EUR", "SAR", "INR"].map((c) => /* @__PURE__ */ React.createElement("option", { key: c }, c))), /* @__PURE__ */ React.createElement("button", { onClick: () => setModal("settings"), style: btn(C.s2, C.muted, `1px solid ${C.border}`, 12, "8px 10px") }, "\u{1F4BE} Save / Load"), /* @__PURE__ */ React.createElement("button", { onClick: () => setModal("export"), style: btn(C.s2, C.muted, `1px solid ${C.border}`, 12, "8px 10px") }, "\u2B07 Excel"), /* @__PURE__ */ React.createElement("button", { onClick: () => setModal("manage"), style: btn(C.s2, C.muted, `1px solid ${C.border}`, 12, "8px 10px") }, "\u2699 Config Data"), /* @__PURE__ */ React.createElement("button", { onClick: () => setModal("import"), style: { ...btn(C.s2, C.muted, `1px solid ${C.border}`, 12, "8px 12px"), marginRight: 6 } }, "\u{1F4F7} Scan Data"), /* @__PURE__ */ React.createElement("button", { onClick: () => setModal("manual"), style: btn(C.accent, "#fff", "none", 12, "8px 12px") }, "\u270F\uFE0F Input Data"))), /* @__PURE__ */ React.createElement("div", { style: { maxWidth: 1100, margin: "0 auto", padding: "20px 16px" } }, /* @__PURE__ */ React.createElement("div", { style: { marginBottom: 16 } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center", marginBottom: period.preset === "custom" ? 10 : 6 } }, [["all", "All"], ["this_year", "This Year"], ["last_year", "Last Year"], ["this_month", "This Month"], ["last_month", "Last Month"], ["custom", "Custom"]].map(([v, l]) => /* @__PURE__ */ React.createElement("button", { key: v, onClick: () => {
     setPeriod((p) => ({ ...p, preset: v }));
     setSelMonths([]);
   }, style: { padding: "6px 13px", borderRadius: 20, border: `1px solid ${period.preset === v && selMonths.length === 0 ? C.accent : C.border}`, background: period.preset === v && selMonths.length === 0 ? C.accent : "transparent", color: period.preset === v && selMonths.length === 0 ? "#fff" : C.muted, fontSize: 12, cursor: "pointer", fontWeight: period.preset === v && selMonths.length === 0 ? 700 : 500, outline: "none" } }, l)), (() => {
@@ -2154,7 +2290,28 @@ function App() {
     { label: avgMode ? "\u25C6 Variable Avg/Mo" : "\u25C6 Variable Cost", value: fmt(avgMode ? (typeTots.nonstandard || 0) / mMonths : typeTots.nonstandard || 0, displayCurrency, dispRates2), sub: mTxs.filter((t) => t.txType === "nonstandard").length + " txns", accent: TYPE_META.nonstandard.color },
     { label: avgMode ? "\u26A1 Exc Avg/Mo" : "\u26A1 Exceptional", value: fmt(avgMode ? (typeTots.exceptional || 0) / mMonths : typeTots.exceptional || 0, displayCurrency, dispRates2), sub: mTxs.filter((t) => t.txType === "exceptional").length + " txns", accent: TYPE_META.exceptional.color },
     { label: avgMode ? "\u{1F4B0} Income Avg/Mo" : "\u{1F4B0} Income", value: fmt(avgMode ? (typeTots.income || 0) / mMonths : typeTots.income || 0, displayCurrency, dispRates2), sub: mTxs.filter((t) => t.isCredit && t.category === "Income").length + " txns", accent: "#1a7a3a" }
-  ].map((c, i) => /* @__PURE__ */ React.createElement("div", { key: i, style: { background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: "16px", position: "relative", overflow: "hidden" } }, /* @__PURE__ */ React.createElement("div", { style: { position: "absolute", top: 0, left: 0, right: 0, height: 3, background: c.accent, borderRadius: "18px 18px 0 0" } }), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11, fontWeight: 700, color: C.muted, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 } }, c.label), /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "inherit", fontSize: 19, letterSpacing: -0.5, marginBottom: 4, lineHeight: 1.2 } }, c.value), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 12, fontWeight: 500, color: C.muted } }, c.sub)))), /* @__PURE__ */ React.createElement("div", { style: { background: C.surface, borderRadius: 14, marginBottom: 18, border: `1px solid ${C.border}`, boxShadow: "0 1px 3px rgba(0,0,0,0.05)", overflowX: "auto", WebkitOverflowScrolling: "touch" } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 2, padding: 5, minWidth: "max-content" } }, TABS.map(([t, icon]) => /* @__PURE__ */ React.createElement("button", { key: t, onClick: () => setTab(t), style: { minWidth: 80, padding: "11px 12px", borderRadius: 10, border: "none", background: tab === t ? C.accent : "transparent", color: tab === t ? "#fff" : C.muted, cursor: "pointer", fontFamily: "inherit", fontWeight: tab === t ? 700 : 500, outline: "none", textAlign: "center", lineHeight: 1.3, transition: "all 0.15s" } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 22 } }, icon), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11, marginTop: 3, letterSpacing: "0.01em", whiteSpace: "nowrap" } }, TAB_LABELS[t]))))), tab === "overview" && /* @__PURE__ */ React.createElement(
+  ].map((c, i) => /* @__PURE__ */ React.createElement("div", { key: i, style: { background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: "16px", position: "relative", overflow: "hidden" } }, /* @__PURE__ */ React.createElement("div", { style: { position: "absolute", top: 0, left: 0, right: 0, height: 3, background: c.accent, borderRadius: "18px 18px 0 0" } }), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11, fontWeight: 700, color: C.muted, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 } }, c.label), /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "inherit", fontSize: 19, letterSpacing: -0.5, marginBottom: 4, lineHeight: 1.2 } }, c.value), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 12, fontWeight: 500, color: C.muted } }, c.sub)))), /* @__PURE__ */ React.createElement("div", { style: { background: C.surface, borderRadius: 14, marginBottom: 18, border: `1px solid ${C.border}`, boxShadow: "0 1px 3px rgba(0,0,0,0.05)", overflowX: "auto", WebkitOverflowScrolling: "touch" } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 2, padding: 5, minWidth: "max-content" } }, TABS.map(([t, icon]) => /* @__PURE__ */ React.createElement("button", { key: t, onClick: () => setTab(t), style: { minWidth: 80, padding: "11px 12px", borderRadius: 10, border: "none", background: tab === t ? C.accent : "transparent", color: tab === t ? "#fff" : C.muted, cursor: "pointer", fontFamily: "inherit", fontWeight: tab === t ? 700 : 500, outline: "none", textAlign: "center", lineHeight: 1.3, transition: "all 0.15s" } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 22 } }, icon), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11, marginTop: 3, letterSpacing: "0.01em", whiteSpace: "nowrap" } }, TAB_LABELS[t]))))), tab === "summary" && /* @__PURE__ */ React.createElement(SummaryTab, { transactions, taxonomy, displayCurrency, dispRates: dispRates2 }), tab === "budget" && /* @__PURE__ */ React.createElement(
+    BudgetTab,
+    {
+      transactions,
+      taxonomy,
+      budgets,
+      setBudgets,
+      displayCurrency
+    }
+  ), tab === "watchout" && /* @__PURE__ */ React.createElement(
+    WatchOutTab,
+    {
+      transactions,
+      taxonomy,
+      spikeThreshold,
+      setSpikeThreshold,
+      showSpikeSettings,
+      setShowSpikeSettings,
+      displayCurrency,
+      onDrillTxs: (txs, label) => setDrillOverlay({ txs, label })
+    }
+  ), tab === "overview" && /* @__PURE__ */ React.createElement(
     SpendingChart,
     {
       transactions: mTxs,

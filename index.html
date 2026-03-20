@@ -22,26 +22,14 @@
 </head>
 <body>
   <div id="root"></div>
-
-  <!-- Eruda mobile console — remove after debugging -->
-
-  <script src="https://cdn.jsdelivr.net/npm/eruda@3.0.1/eruda.min.js"></script>
-
-  <script>eruda.init();</script>
-
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
-
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
-
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
-
   <script crossorigin src="https://cdn.jsdelivr.net/npm/react@17.0.2/umd/react.production.min.js"></script>
-
   <script crossorigin src="https://cdn.jsdelivr.net/npm/react-dom@17.0.2/umd/react-dom.production.min.js"></script>
-
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-
   <script>
+var useState=React.useState,useEffect=React.useEffect,useRef=React.useRef,useMemo=React.useMemo,useCallback=React.useCallback;
 const FIREBASE_CONFIG = {
   apiKey: "AIzaSyBeB2_yxuxDe6k1TQSXB6EJEUQ6eGJWNTo",
   authDomain: "home-financials.firebaseapp.com",
@@ -2133,7 +2121,7 @@ function ManualEntryModal({ onImport, taxonomy, onClose }) {
     return /* @__PURE__ */ React.createElement("option", { key: s, value: s }, (_b = (_a2 = taxonomy[cat]) == null ? void 0 : _a2.subs[s]) == null ? void 0 : _b.icon, " ", s);
   }))), !isCredit && /* @__PURE__ */ React.createElement("div", { style: { marginBottom: 18 } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11, color: C.dim, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 } }, "Cost Type"), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 6 } }, Object.entries(TYPE_META).map(([v, m]) => /* @__PURE__ */ React.createElement("button", { key: v, onClick: () => setTxType(v), style: { flex: 1, padding: "9px 0", borderRadius: 10, border: `1px solid ${txType === v ? m.color : C.border}`, background: txType === v ? m.color + "18" : "transparent", color: txType === v ? m.color : C.muted, fontSize: 12, cursor: "pointer", fontFamily: "inherit", fontWeight: txType === v ? 700 : 400 } }, m.label)))), err && /* @__PURE__ */ React.createElement("div", { style: { color: C.danger, fontSize: 13, marginBottom: 12 } }, "\u26A0\uFE0F ", err), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 10 } }, /* @__PURE__ */ React.createElement("button", { onClick: handleAdd, style: { ...btn(C.accent, "#fff", "none", 14, "13px 0"), flex: 1 } }, "\u2713 Add Transaction"), /* @__PURE__ */ React.createElement("button", { onClick: onClose, style: btn(C.s2, C.muted, `1px solid ${C.border}`, 13, "13px 16px") }, "Cancel"))));
 }
-export default function App() {
+function App() {
   var _a;
   const [taxonomy, setTaxonomyRaw] = useState(DEFAULT_TAXONOMY);
   const [vendorMap, setVendorMapRaw] = useState({});
@@ -2725,12 +2713,10 @@ export default function App() {
 ReactDOM.render(React.createElement(ErrorBoundary, null, React.createElement(App, null)), document.getElementById("root"));
 
   </script>
-
   <script>
     if('serviceWorker' in navigator) {
       navigator.serviceWorker.register('sw.js').catch(function(){});
     }
   </script>
-
 </body>
 </html>

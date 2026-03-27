@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+
 <html lang="en">
 <head>
   <meta charset="UTF-8"/>
@@ -2025,25 +2026,33 @@ function SummaryTab({ transactions, taxonomy, displayCurrency, globalTypeFilter 
   var thisYear = String(now.getFullYear());
   function calcSlice(txs) {
     var income = 0;
-    var expense = 0;
+    var buckets = { standard: 0, nonstandard: 0, exceptional: 0 };
     txs.forEach(function(t) {
       if (t.isCredit) {
         if (t.category === "Income") {
           income += t.amount;
         } else {
-          expense -= t.amount;
+          var k = t.txType || "standard";
+          buckets[k] = (buckets[k] || 0) - t.amount;
         }
       } else {
         if (globalTypeFilter.includes(t.txType)) {
-          expense += t.amount;
+          buckets[t.txType] = (buckets[t.txType] || 0) + t.amount;
         }
       }
     });
+    var std = Math.max(0, buckets.standard);
+    var nsv = Math.max(0, buckets.nonstandard);
+    var exc = Math.max(0, buckets.exceptional);
+    var expense = std + nsv + exc;
     var net = income - expense;
     return {
       income,
-      expense: Math.max(0, expense),
+      expense,
       net,
+      standard: std,
+      nonstandard: nsv,
+      exceptional: exc,
       count: txs.length
     };
   }
@@ -3573,29 +3582,27 @@ function App() {
     if (selMonths.length > 0) return inPeriod.filter((t) => selMonths.includes(t.date ? t.date.slice(0, 7) : ""));
     return inPeriod;
   }, [transactions, pFrom, pTo, globalTypeFilter, selMonths]);
-  const total = (() => {
-    var exp = 0;
-    mTxs.forEach(function(t) {
-      if (!t.isCredit) {
-        exp += t.amount;
-      } else if (t.category !== "Income") {
-        exp -= t.amount;
-      }
-    });
-    return Math.max(0, exp);
-  })();
   const change = null;
   const typeTots = useMemo(() => {
     const r = { standard: 0, nonstandard: 0, exceptional: 0, income: 0 };
     mTxs.forEach((t) => {
-      if (t.isCredit && t.category === "Income") {
-        r.income += t.amount;
-      } else if (!t.isCredit) {
+      if (t.isCredit) {
+        if (t.category === "Income") {
+          r.income += t.amount;
+        } else {
+          const k = t.txType || "standard";
+          r[k] = (r[k] || 0) - t.amount;
+        }
+      } else {
         r[t.txType] = (r[t.txType] || 0) + t.amount;
       }
     });
+    r.standard = Math.max(0, r.standard);
+    r.nonstandard = Math.max(0, r.nonstandard);
+    r.exceptional = Math.max(0, r.exceptional);
     return r;
   }, [mTxs]);
+  const total = typeTots.standard + typeTots.nonstandard + typeTots.exceptional;
   const allCats = [...new Set(transactions.map((t) => t.category))];
   function handleRemap(cat, sub, txType, scope) {
     const k = (remapTx.description || "").toLowerCase().trim();

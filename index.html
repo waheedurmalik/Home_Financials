@@ -7,7 +7,6 @@
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
   <meta name="theme-color" content="#ecf1eb"/>
-
   <title>Home Financials</title>
   <link rel="manifest" href="manifest.json"/>
   <style>
@@ -99,7 +98,7 @@ const fmtM = (m) => {
   const [y, mo] = m.split("-");
   return new Date(y, +mo - 1).toLocaleDateString("en-GB", { month: "short", year: "2-digit" });
 };
-const fmtD = (d) => d ? new Date(d).toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : "";
+const fmtD = (d) => d ? new Date(d).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "";
 const fmtDNum = (d) => {
   if (!d) return "";
   const [y, m, dd] = d.split("-");
@@ -2443,6 +2442,8 @@ function PositionTab({ financials, displayCurrency, displayRates }) {
   var debts = financials && financials.debts || [];
   var isEmpty = !accounts.length && !cash.length && !investments.length && !properties.length && !loans.length && !debts.length;
   if (isEmpty) return /* @__PURE__ */ React.createElement("div", { style: card }, /* @__PURE__ */ React.createElement("div", { style: { textAlign: "center", padding: "40px 20px" } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 40, marginBottom: 12 } }, "\u{1F4CA}"), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 17, fontWeight: 700, marginBottom: 8, color: C.text } }, "Net Worth not set up yet"), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 13, color: C.muted, lineHeight: 1.6, maxWidth: 320, margin: "0 auto" } }, "Add your accounts, investments, properties and loans in", /* @__PURE__ */ React.createElement("br", null), /* @__PURE__ */ React.createElement("strong", null, "Config Data \u2192 \u{1F4BC} Financial"), /* @__PURE__ */ React.createElement("br", null), "then enter current balances via ", /* @__PURE__ */ React.createElement("strong", null, "\u270F\uFE0F Input Data \u2192 Position"))));
+  var today = /* @__PURE__ */ new Date();
+  var threeYearsFromNow = new Date(today.getFullYear() + 3, today.getMonth(), today.getDate());
   var cashTotal = cash.reduce(function(sum, item) {
     return sum + toDisplay(item.amount || 0, item.currency || "AED");
   }, 0);
@@ -2455,28 +2456,48 @@ function PositionTab({ financials, displayCurrency, displayRates }) {
       bankAssets += toDisplay(bal, acc.currency || "AED");
     }
   });
-  var investAvailable = 0, investLocked = 0;
+  var investAvailable = 0, investMedLocked = 0, investLongLocked = 0;
   investments.forEach(function(inv) {
     var ticker = inv.ticker && inv.ticker.trim().toUpperCase();
     var price = ticker && livePrices[ticker] != null ? livePrices[ticker] : inv.currentPrice || 0;
     var value = price * (inv.shares || 0);
-    if (inv.status === "locked") {
-      investLocked += toDisplay(value, inv.currency || "USD");
+    var val = toDisplay(value, inv.currency || "USD");
+    if (inv.status !== "locked") {
+      investAvailable += val;
     } else {
-      investAvailable += toDisplay(value, inv.currency || "USD");
+      var unlockDate = inv.unlockDate ? new Date(inv.unlockDate) : null;
+      if (unlockDate && unlockDate <= threeYearsFromNow) {
+        investMedLocked += val;
+      } else {
+        investLongLocked += val;
+      }
     }
   });
-  var propertyValue = 0, mortgageBalance = 0, otherLoansBalance = 0;
+  var shortTermLoans = [], mediumTermLoans = [], longTermLoans = [];
+  loans.forEach(function(loan) {
+    if (loan.loanType === "mortgage") {
+      longTermLoans.push(loan);
+    } else {
+      var endDate = loan.currentEndDate ? new Date(loan.currentEndDate) : loan.endDate ? new Date(loan.endDate) : null;
+      if (endDate && endDate > threeYearsFromNow) {
+        mediumTermLoans.push(loan);
+      } else {
+        shortTermLoans.push(loan);
+      }
+    }
+  });
+  var shortTermLoansBalance = shortTermLoans.reduce(function(s, l) {
+    return s + toDisplay(l.outstandingBalance || 0, l.currency || "AED");
+  }, 0);
+  var mediumTermLoansBalance = mediumTermLoans.reduce(function(s, l) {
+    return s + toDisplay(l.outstandingBalance || 0, l.currency || "AED");
+  }, 0);
+  var mortgageBalance = longTermLoans.reduce(function(s, l) {
+    return s + toDisplay(l.outstandingBalance || 0, l.currency || "AED");
+  }, 0);
+  var propertyValue = 0;
   properties.forEach(function(prop) {
     propertyValue += toDisplay(prop.currentValue || prop.purchasePrice || 0, prop.currency || "AED");
-  });
-  loans.forEach(function(loan) {
-    var bal = toDisplay(loan.outstandingBalance || 0, loan.currency || "AED");
-    if (loan.loanType === "mortgage" || loan.term === "long") {
-      mortgageBalance += bal;
-    } else {
-      otherLoansBalance += bal;
-    }
   });
   var owedToMe = 0, owedByMe = 0;
   debts.forEach(function(d) {
@@ -2485,10 +2506,12 @@ function PositionTab({ financials, displayCurrency, displayRates }) {
     else owedByMe += amt;
   });
   var shortTermFunds = bankAssets + cashTotal;
-  var shortTermDue = creditLiabilities + otherLoansBalance + owedByMe;
+  var shortTermDue = creditLiabilities + shortTermLoansBalance + owedByMe;
   var shortTermNet = shortTermFunds - shortTermDue;
-  var mediumTermNet = investAvailable;
-  var longTermValue = propertyValue + investLocked;
+  var mediumTermValue = investAvailable + investMedLocked;
+  var mediumTermDue = mediumTermLoansBalance;
+  var mediumTermNet = mediumTermValue - mediumTermDue;
+  var longTermValue = propertyValue + investLongLocked;
   var longTermDebts = mortgageBalance;
   var longTermNet = longTermValue - longTermDebts;
   var totalNetWorth = shortTermNet + mediumTermNet + longTermNet;
@@ -2635,11 +2658,7 @@ function PositionTab({ financials, displayCurrency, displayRates }) {
         isLiability: true
       }
     );
-  })), loans.filter(function(l) {
-    return l.loanType !== "mortgage" && l.term !== "long";
-  }).length > 0 && /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement(SectionHeader, { icon: "\u{1F4B8}", label: "Short-term Loan Payments" }), loans.filter(function(l) {
-    return l.loanType !== "mortgage" && l.term !== "long";
-  }).map(function(loan) {
+  })), shortTermLoans.length > 0 && /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement(SectionHeader, { icon: "\u{1F4B8}", label: "Short-term Loan Payments" }), shortTermLoans.map(function(loan) {
     return /* @__PURE__ */ React.createElement(
       ItemRow,
       {
@@ -2675,9 +2694,9 @@ function PositionTab({ financials, displayCurrency, displayRates }) {
         value: toDisplay(d.amount || 0, d.currency || "AED")
       }
     );
-  })), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: "2px solid " + C.border, marginBottom: 10 } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 12, fontWeight: 700, color: C.muted } }, "Total Payments Due"), /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "monospace", fontSize: 13, fontWeight: 800, color: C.danger } }, "\u2212", dc + " " + shortTermDue.toLocaleString("en-AE", { minimumFractionDigits: 0, maximumFractionDigits: 0 }))), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", justifyContent: "space-between", paddingTop: 6, marginTop: 2 } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 12, fontWeight: 700, color: C.muted } }, "Short Term Position"), /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "monospace", fontSize: 13, fontWeight: 800, color: netWorthColor(shortTermNet) } }, shortTermNet >= 0 ? "" : "\u2212", dc + " " + Math.abs(shortTermNet).toLocaleString("en-AE", { minimumFractionDigits: 0, maximumFractionDigits: 0 })))), investments.filter(function(inv) {
+  })), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: "2px solid " + C.border, marginBottom: 10 } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 12, fontWeight: 700, color: C.muted } }, "Total Payments Due"), /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "monospace", fontSize: 13, fontWeight: 800, color: C.danger } }, "\u2212", dc + " " + shortTermDue.toLocaleString("en-AE", { minimumFractionDigits: 0, maximumFractionDigits: 0 })))), (investments.length > 0 || mediumTermLoans.length > 0) && /* @__PURE__ */ React.createElement(TierCard, { title: "\u{1F4C8} Medium Term Position", netValue: mediumTermNet }, investments.filter(function(inv) {
     return inv.status !== "locked";
-  }).length > 0 && /* @__PURE__ */ React.createElement(TierCard, { title: "\u{1F4C8} Medium Term \u2014 Available Investments", netValue: mediumTermNet }, /* @__PURE__ */ React.createElement(SectionHeader, { icon: "\u{1F4C8}", label: "Shares Available" }), investments.filter(function(inv) {
+  }).length > 0 && /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement(SectionHeader, { icon: "\u{1F4C8}", label: "Shares Available" }), investments.filter(function(inv) {
     return inv.status !== "locked";
   }).map(function(inv) {
     var ticker = inv.ticker && inv.ticker.trim().toUpperCase();
@@ -2687,18 +2706,46 @@ function PositionTab({ financials, displayCurrency, displayRates }) {
     var status = ticker ? priceStatus[ticker] : null;
     var priceHint = livePrice != null ? "Live: " + (inv.currency || "USD") + " " + livePrice.toLocaleString("en-AE", { minimumFractionDigits: 2, maximumFractionDigits: 4 }) + " \xB7 " + (inv.shares || 0) + " shares" : inv.currentPrice ? "Manual: " + (inv.currency || "USD") + " " + inv.currentPrice + " \xB7 " + (inv.shares || 0) + " shares" : (inv.shares || 0) + " shares \xB7 no price";
     return /* @__PURE__ */ React.createElement("div", { key: inv.id, style: { display: "flex", justifyContent: "space-between", alignItems: "flex-start", padding: "9px 0", borderBottom: "1px solid " + C.s2 } }, /* @__PURE__ */ React.createElement("div", { style: { flex: 1 } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 13, fontWeight: 600, color: C.text, display: "flex", alignItems: "center", gap: 6 } }, inv.name || ticker, ticker && status === "loading" && /* @__PURE__ */ React.createElement("span", { style: { fontSize: 10, color: C.dim } }, "\u23F3"), ticker && status === "ok" && /* @__PURE__ */ React.createElement("span", { style: { fontSize: 10, color: C.accent } }, "\u25CF live"), ticker && status === "error" && /* @__PURE__ */ React.createElement("span", { style: { fontSize: 10, color: "#d4860a" } }, "\u26A0 no feed")), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11, color: C.dim } }, priceHint)), /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "monospace", fontSize: 13, fontWeight: 700, color: C.text, whiteSpace: "nowrap", marginLeft: 12 } }, fmtPos(value, inv.currency || "USD")));
-  }), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", justifyContent: "space-between", paddingTop: 8, marginTop: 2 } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 12, fontWeight: 700, color: C.muted } }, "Total Available"), /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "monospace", fontSize: 13, fontWeight: 800, color: netWorthColor(mediumTermNet) } }, dc + " " + mediumTermNet.toLocaleString("en-AE", { minimumFractionDigits: 0, maximumFractionDigits: 0 })))), (properties.length > 0 || investments.filter(function(inv) {
-    return inv.status === "locked";
-  }).length > 0 || loans.filter(function(l) {
-    return l.loanType === "mortgage" || l.term === "long";
-  }).length > 0) && /* @__PURE__ */ React.createElement(TierCard, { title: "\u{1F3E0} Long Term Position", netValue: longTermNet }, /* @__PURE__ */ React.createElement(SectionHeader, { icon: "\u{1F48E}", label: "Long Term Value" }), properties.map(function(prop) {
+  })), investments.filter(function(inv) {
+    if (inv.status !== "locked") return false;
+    var ud = inv.unlockDate ? new Date(inv.unlockDate) : null;
+    return ud && ud <= threeYearsFromNow;
+  }).length > 0 && /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement(SectionHeader, { icon: "\u{1F513}", label: "Locked Shares \u2014 Unlocking Within 3 Years" }), investments.filter(function(inv) {
+    if (inv.status !== "locked") return false;
+    var ud = inv.unlockDate ? new Date(inv.unlockDate) : null;
+    return ud && ud <= threeYearsFromNow;
+  }).map(function(inv) {
+    var ticker = inv.ticker && inv.ticker.trim().toUpperCase();
+    var livePrice = ticker && livePrices[ticker] != null ? livePrices[ticker] : null;
+    var price = livePrice != null ? livePrice : inv.currentPrice || 0;
+    var value = price * (inv.shares || 0);
+    var status = ticker ? priceStatus[ticker] : null;
+    return /* @__PURE__ */ React.createElement("div", { key: inv.id, style: { display: "flex", justifyContent: "space-between", alignItems: "flex-start", padding: "9px 0", borderBottom: "1px solid " + C.s2 } }, /* @__PURE__ */ React.createElement("div", { style: { flex: 1 } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 13, fontWeight: 600, color: C.text, display: "flex", alignItems: "center", gap: 6 } }, "\u{1F513} ", inv.name || ticker, ticker && status === "loading" && /* @__PURE__ */ React.createElement("span", { style: { fontSize: 10, color: C.dim } }, "\u23F3"), ticker && status === "ok" && /* @__PURE__ */ React.createElement("span", { style: { fontSize: 10, color: C.accent } }, "\u25CF live"), ticker && status === "error" && /* @__PURE__ */ React.createElement("span", { style: { fontSize: 10, color: "#d4860a" } }, "\u26A0 no feed")), inv.unlockDate && /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11, color: "#d4860a" } }, "Unlocks ", fmtD(inv.unlockDate)), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11, color: C.dim } }, inv.shares || 0, " shares", livePrice != null ? " \xB7 Live: " + (inv.currency || "USD") + " " + livePrice.toLocaleString("en-AE", { minimumFractionDigits: 2, maximumFractionDigits: 4 }) : inv.currentPrice ? " \xB7 Manual: " + (inv.currency || "USD") + " " + inv.currentPrice : "")), /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "monospace", fontSize: 13, fontWeight: 700, color: C.text, whiteSpace: "nowrap", marginLeft: 12 } }, fmtPos(value, inv.currency || "USD")));
+  })), mediumTermValue > 0 && /* @__PURE__ */ React.createElement("div", { style: { display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: "2px solid " + C.border, marginBottom: 10 } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 12, fontWeight: 700, color: C.muted } }, "Total Medium Term Value"), /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "monospace", fontSize: 13, fontWeight: 800, color: C.accent } }, dc + " " + mediumTermValue.toLocaleString("en-AE", { minimumFractionDigits: 0, maximumFractionDigits: 0 }))), mediumTermLoans.length > 0 && /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement(SectionHeader, { icon: "\u{1F4B3}", label: "Loans Ending Within 3 Years" }), mediumTermLoans.map(function(loan) {
+    return /* @__PURE__ */ React.createElement(
+      ItemRow,
+      {
+        key: loan.id,
+        label: loan.name,
+        hint: (loan.lender || "") + " \xB7 " + (loan.currency || "AED") + (loan.currentEndDate ? " \xB7 ends " + fmtD(loan.currentEndDate) : loan.endDate ? " \xB7 ends " + fmtD(loan.endDate) : ""),
+        value: toDisplay(loan.outstandingBalance || 0, loan.currency || "AED"),
+        isLiability: true
+      }
+    );
+  }), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: "2px solid " + C.border, marginBottom: 6 } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 12, fontWeight: 700, color: C.muted } }, "Total Medium Term Loans"), /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "monospace", fontSize: 13, fontWeight: 800, color: C.danger } }, "\u2212", dc + " " + mediumTermDue.toLocaleString("en-AE", { minimumFractionDigits: 0, maximumFractionDigits: 0 }))))), (properties.length > 0 || investments.filter(function(inv) {
+    if (inv.status !== "locked") return false;
+    var ud = inv.unlockDate ? new Date(inv.unlockDate) : null;
+    return !ud || ud > threeYearsFromNow;
+  }).length > 0 || longTermLoans.length > 0) && /* @__PURE__ */ React.createElement(TierCard, { title: "\u{1F3E0} Long Term Position", netValue: longTermNet }, /* @__PURE__ */ React.createElement(SectionHeader, { icon: "\u{1F48E}", label: "Long Term Value" }), properties.map(function(prop) {
     var val = prop.currentValue || prop.purchasePrice || 0;
     var linkedMortgage = prop.mortgageId ? loans.find(function(l) {
       return l.id === prop.mortgageId;
     }) : null;
     return /* @__PURE__ */ React.createElement("div", { key: prop.id, style: { padding: "9px 0", borderBottom: "1px solid " + C.s2 } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "flex-start" } }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 13, fontWeight: 600, color: C.text } }, prop.name), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11, color: C.dim } }, prop.currentValue ? "Market value" : "Purchase price", " \xB7 ", prop.currency || "AED")), /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "monospace", fontSize: 13, fontWeight: 700, color: C.text, whiteSpace: "nowrap", marginLeft: 12 } }, fmtPos(val, prop.currency || "AED"))), linkedMortgage && /* @__PURE__ */ React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", paddingLeft: 12, marginTop: 4 } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11, color: C.dim } }, "Linked mortgage: ", linkedMortgage.name || linkedMortgage.lender), /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "monospace", fontSize: 11, color: C.dim, whiteSpace: "nowrap", marginLeft: 12 } }, "outstanding: ", dc + " " + (linkedMortgage.outstandingBalance || 0).toLocaleString("en-AE", { minimumFractionDigits: 0, maximumFractionDigits: 0 }))));
   }), investments.filter(function(inv) {
-    return inv.status === "locked";
+    if (inv.status !== "locked") return false;
+    var ud = inv.unlockDate ? new Date(inv.unlockDate) : null;
+    return !ud || ud > threeYearsFromNow;
   }).map(function(inv) {
     var ticker = inv.ticker && inv.ticker.trim().toUpperCase();
     var livePrice = ticker && livePrices[ticker] != null ? livePrices[ticker] : null;
@@ -2706,11 +2753,7 @@ function PositionTab({ financials, displayCurrency, displayRates }) {
     var value = price * (inv.shares || 0);
     var status = ticker ? priceStatus[ticker] : null;
     return /* @__PURE__ */ React.createElement("div", { key: inv.id, style: { display: "flex", justifyContent: "space-between", alignItems: "flex-start", padding: "9px 0", borderBottom: "1px solid " + C.s2 } }, /* @__PURE__ */ React.createElement("div", { style: { flex: 1 } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 13, fontWeight: 600, color: C.text, display: "flex", alignItems: "center", gap: 6 } }, "\u{1F512} ", inv.name || ticker, ticker && status === "loading" && /* @__PURE__ */ React.createElement("span", { style: { fontSize: 10, color: C.dim } }, "\u23F3"), ticker && status === "ok" && /* @__PURE__ */ React.createElement("span", { style: { fontSize: 10, color: C.accent } }, "\u25CF live"), ticker && status === "error" && /* @__PURE__ */ React.createElement("span", { style: { fontSize: 10, color: "#d4860a" } }, "\u26A0 no feed")), inv.unlockDate && /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11, color: "#d4860a" } }, "Unlocks ", fmtD(inv.unlockDate)), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11, color: C.dim } }, inv.shares || 0, " shares", livePrice != null ? " \xB7 Live: " + (inv.currency || "USD") + " " + livePrice.toLocaleString("en-AE", { minimumFractionDigits: 2, maximumFractionDigits: 4 }) : inv.currentPrice ? " \xB7 Manual: " + (inv.currency || "USD") + " " + inv.currentPrice : "")), /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "monospace", fontSize: 13, fontWeight: 700, color: C.text, whiteSpace: "nowrap", marginLeft: 12 } }, fmtPos(value, inv.currency || "USD")));
-  }), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: "2px solid " + C.border, marginBottom: 10 } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 12, fontWeight: 700, color: C.muted } }, "Total Long Term Value"), /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "monospace", fontSize: 13, fontWeight: 800, color: C.accent } }, dc + " " + longTermValue.toLocaleString("en-AE", { minimumFractionDigits: 0, maximumFractionDigits: 0 }))), loans.filter(function(l) {
-    return l.loanType === "mortgage" || l.term === "long";
-  }).length > 0 && /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement(SectionHeader, { icon: "\u{1F3E6}", label: "Long Term Debts" }), loans.filter(function(l) {
-    return l.loanType === "mortgage" || l.term === "long";
-  }).map(function(loan) {
+  }), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: "2px solid " + C.border, marginBottom: 10 } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 12, fontWeight: 700, color: C.muted } }, "Total Long Term Value"), /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "monospace", fontSize: 13, fontWeight: 800, color: C.accent } }, dc + " " + longTermValue.toLocaleString("en-AE", { minimumFractionDigits: 0, maximumFractionDigits: 0 }))), longTermLoans.length > 0 && /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement(SectionHeader, { icon: "\u{1F3E6}", label: "Long Term Debts \u2014 Mortgages" }), longTermLoans.map(function(loan) {
     return /* @__PURE__ */ React.createElement(
       ItemRow,
       {
@@ -2721,7 +2764,7 @@ function PositionTab({ financials, displayCurrency, displayRates }) {
         isLiability: true
       }
     );
-  }), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: "2px solid " + C.border, marginBottom: 10 } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 12, fontWeight: 700, color: C.muted } }, "Total Long Term Debts"), /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "monospace", fontSize: 13, fontWeight: 800, color: C.danger } }, "\u2212", dc + " " + longTermDebts.toLocaleString("en-AE", { minimumFractionDigits: 0, maximumFractionDigits: 0 })))), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", justifyContent: "space-between", paddingTop: 6, marginTop: 2 } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 12, fontWeight: 700, color: C.muted } }, "Long Term Balance"), /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "monospace", fontSize: 13, fontWeight: 800, color: netWorthColor(longTermNet) } }, longTermNet >= 0 ? "" : "\u2212", dc + " " + Math.abs(longTermNet).toLocaleString("en-AE", { minimumFractionDigits: 0, maximumFractionDigits: 0 })))), /* @__PURE__ */ React.createElement("div", { style: {
+  }), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: "2px solid " + C.border, marginBottom: 6 } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 12, fontWeight: 700, color: C.muted } }, "Total Long Term Debts"), /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "monospace", fontSize: 13, fontWeight: 800, color: C.danger } }, "\u2212", dc + " " + longTermDebts.toLocaleString("en-AE", { minimumFractionDigits: 0, maximumFractionDigits: 0 }))))), /* @__PURE__ */ React.createElement("div", { style: {
     background: C.surface,
     border: "1px solid " + C.border,
     borderRadius: 14,
@@ -2775,7 +2818,7 @@ function FinancialPositionPanel({ financials, setFinancials, onSave, onClose }) 
     if (!value) return null;
     return /* @__PURE__ */ React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 3 } }, /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, color: C.dim } }, label), /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, color: C.muted, fontFamily: "monospace" } }, value));
   }
-  function AmtInput({ itemId, label, existing, readOnly, onChangeCb }) {
+  function amtRow(itemId, label, existing, readOnly, onChangeCb) {
     var val = posAmounts[itemId] !== void 0 ? posAmounts[itemId] : existing || "";
     return /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8, marginTop: 8 } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11, color: C.muted, flexShrink: 0 } }, label), /* @__PURE__ */ React.createElement(
       "input",
@@ -2805,19 +2848,10 @@ function FinancialPositionPanel({ financials, setFinancials, onSave, onClose }) 
       }
     ));
   }
-  function ItemCard({ children, highlight }) {
-    return /* @__PURE__ */ React.createElement("div", { style: {
-      background: highlight ? "rgba(42,157,111,0.06)" : C.s2,
-      borderRadius: 10,
-      padding: "12px 14px",
-      marginBottom: 10,
-      border: highlight ? "1px solid rgba(42,157,111,0.2)" : "1px solid transparent"
-    } }, children);
-  }
   function AccountsSection() {
     return accounts.length === 0 ? /* @__PURE__ */ React.createElement("div", { style: { textAlign: "center", padding: "24px", color: C.dim, fontSize: 12 } }, "No accounts set up yet. Add them in Config Data \u2192 \u{1F4B0} Financial Position.") : accounts.map(function(acc) {
       var existing = acc.balance || "";
-      return /* @__PURE__ */ React.createElement(ItemCard, { key: acc.id }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 } }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 13, fontWeight: 700, color: C.text } }, acc.name), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11, color: C.dim } }, acc.bank, acc.last4 ? " \xB7\xB7\xB7" + acc.last4 : "", " \xB7 ", acc.type, " \xB7 ", acc.currency || "AED")), /* @__PURE__ */ React.createElement("span", { style: { fontSize: 10, background: C.s2, padding: "2px 8px", borderRadius: 20, color: C.muted, border: "1px solid " + C.border } }, acc.type)), /* @__PURE__ */ React.createElement(AmtInput, { itemId: acc.id, label: acc.type === "credit" ? "Balance Owed" : "Current Balance", existing }));
+      return /* @__PURE__ */ React.createElement("div", { key: acc.id, style: { background: C.s2, borderRadius: 10, padding: "12px 14px", marginBottom: 10, border: "1px solid transparent" } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 } }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 13, fontWeight: 700, color: C.text } }, acc.name), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11, color: C.dim } }, acc.bank, acc.last4 ? " \xB7\xB7\xB7" + acc.last4 : "", " \xB7 ", acc.type, " \xB7 ", acc.currency || "AED")), /* @__PURE__ */ React.createElement("span", { style: { fontSize: 10, background: C.s2, padding: "2px 8px", borderRadius: 20, color: C.muted, border: "1px solid " + C.border } }, acc.type)), amtRow(acc.id, acc.type === "credit" ? "Balance Owed" : "Current Balance", existing, void 0, void 0));
     });
   }
   function CashSection() {
@@ -2839,7 +2873,7 @@ function FinancialPositionPanel({ financials, setFinancials, onSave, onClose }) 
       setCashEdit(null);
     }
     return /* @__PURE__ */ React.createElement("div", null, cashEdit && /* @__PURE__ */ React.createElement("div", { style: { background: C.surface, border: "1px solid " + C.accent + "44", borderRadius: 12, padding: "14px", marginBottom: 12 } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 10 } }, cashEdit.new ? "Add Cash" : "Edit Cash"), /* @__PURE__ */ React.createElement(LabelRow, { label: "Label" }, /* @__PURE__ */ React.createElement("input", { value: cashEdit.label || "", onChange: (e) => setCashEdit((p) => ({ ...p, label: e.target.value })), placeholder: "e.g. Home Safe, Wallet", style: inp2() })), /* @__PURE__ */ React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 } }, /* @__PURE__ */ React.createElement(LabelRow, { label: "Currency" }, /* @__PURE__ */ React.createElement("select", { value: cashEdit.currency || "AED", onChange: (e) => setCashEdit((p) => ({ ...p, currency: e.target.value })), style: { ...inp2(), appearance: "none" } }, CURRENCIES.map((c) => /* @__PURE__ */ React.createElement("option", { key: c }, c)))), /* @__PURE__ */ React.createElement(LabelRow, { label: "Amount" }, /* @__PURE__ */ React.createElement("input", { type: "text", inputMode: "decimal", value: cashEdit.amount || "", onChange: (e) => setCashEdit((p) => ({ ...p, amount: e.target.value })), placeholder: "0.00", style: inp2({ fontFamily: "monospace" }) }))), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 8, marginTop: 10 } }, /* @__PURE__ */ React.createElement("button", { onClick: saveCash, style: { ...btn(C.accent, "#fff", "none", 13, "8px 0"), flex: 1 } }, "\u2713 Save"), /* @__PURE__ */ React.createElement("button", { onClick: () => setCashEdit(null), style: btn(C.s2, C.muted, "1px solid " + C.border, 12, "8px 12px") }, "Cancel"))), cashItems.map(function(item) {
-      return /* @__PURE__ */ React.createElement(ItemCard, { key: item.id }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center" } }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 13, fontWeight: 700, color: C.text } }, item.label), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11, color: C.dim } }, item.currency || "AED", " \xB7 Last saved: ", item.amount || "\u2014")), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 6 } }, /* @__PURE__ */ React.createElement("button", { onClick: () => setCashEdit({ id: item.id, label: item.label, currency: item.currency || "AED", amount: String(item.amount || "") }), style: btn(C.s3, C.muted, "1px solid " + C.border, 11, "4px 8px") }, "\u270F\uFE0F"), /* @__PURE__ */ React.createElement("button", { onClick: () => {
+      return /* @__PURE__ */ React.createElement("div", { key: item.id, style: { background: C.s2, borderRadius: 10, padding: "12px 14px", marginBottom: 10, border: "1px solid transparent" } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center" } }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 13, fontWeight: 700, color: C.text } }, item.label), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11, color: C.dim } }, item.currency || "AED", " \xB7 Last saved: ", item.amount || "\u2014")), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 6 } }, /* @__PURE__ */ React.createElement("button", { onClick: () => setCashEdit({ id: item.id, label: item.label, currency: item.currency || "AED", amount: String(item.amount || "") }), style: btn(C.s3, C.muted, "1px solid " + C.border, 11, "4px 8px") }, "\u270F\uFE0F"), /* @__PURE__ */ React.createElement("button", { onClick: () => {
         if (window.confirm("Delete this cash item?")) upd("cash", function(arr) {
           return arr.filter(function(x) {
             return x.id !== item.id;
@@ -2851,46 +2885,30 @@ function FinancialPositionPanel({ financials, setFinancials, onSave, onClose }) 
   function InvestmentsSection() {
     return investments.length === 0 ? /* @__PURE__ */ React.createElement("div", { style: { textAlign: "center", padding: "24px", color: C.dim, fontSize: 12 } }, "No investments set up. Add them in Config Data \u2192 \u{1F4B0} Financial Position.") : investments.map(function(inv) {
       var existing = inv.currentPrice || "";
-      return /* @__PURE__ */ React.createElement(ItemCard, { key: inv.id }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 4 } }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 13, fontWeight: 700, color: C.text } }, inv.name), inv.ticker && /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11, color: C.accent, fontFamily: "monospace" } }, inv.ticker)), /* @__PURE__ */ React.createElement("span", { style: { fontSize: 10, background: inv.status === "locked" ? "rgba(212,134,10,0.1)" : "rgba(42,157,111,0.1)", padding: "2px 8px", borderRadius: 20, color: inv.status === "locked" ? "#d4860a" : C.accent, border: "1px solid " + (inv.status === "locked" ? "#d4860a44" : C.accent + "44") } }, inv.status === "locked" ? "\u{1F512} Locked" : "Available")), /* @__PURE__ */ React.createElement(ROField, { label: "Provider", value: inv.provider }), /* @__PURE__ */ React.createElement(ROField, { label: "Account #", value: inv.accountNumber }), /* @__PURE__ */ React.createElement(ROField, { label: "Currency", value: inv.currency || "USD" }), /* @__PURE__ */ React.createElement(ROField, { label: "Initial shares", value: inv.initialShares ? String(inv.initialShares) : null }), /* @__PURE__ */ React.createElement(ROField, { label: "Initial price", value: inv.purchasePrice ? String(inv.purchasePrice) : null }), inv.unlockDate && /* @__PURE__ */ React.createElement(ROField, { label: "Unlock date", value: inv.unlockDate }), /* @__PURE__ */ React.createElement("div", { style: { height: 1, background: C.border, margin: "8px 0" } }), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11, fontWeight: 700, color: C.muted, marginBottom: 4 } }, "Update current values"), /* @__PURE__ */ React.createElement(
-        AmtInput,
-        {
-          itemId: inv.id + "_shares",
-          label: "Current shares",
-          existing: inv.shares ? String(inv.shares) : null,
-          onChangeCb: function(sh) {
-            var pr = posAmounts[inv.id + "_price"] !== void 0 ? posAmounts[inv.id + "_price"] : inv.currentPrice || "";
-            var calc = parseFloat(sh) * parseFloat(pr);
-            if (!isNaN(calc)) setPosAmounts(function(prev) {
-              var n = { ...prev };
-              n[inv.id + "_value"] = calc.toFixed(2);
-              return n;
-            });
-          }
-        }
-      ), /* @__PURE__ */ React.createElement(
-        AmtInput,
-        {
-          itemId: inv.id + "_price",
-          label: "Current price (" + String(inv.currency || "USD") + ")",
-          existing: inv.currentPrice ? String(inv.currentPrice) : null,
-          onChangeCb: function(pr) {
-            var sh = posAmounts[inv.id + "_shares"] !== void 0 ? posAmounts[inv.id + "_shares"] : inv.shares || "";
-            var calc = parseFloat(sh) * parseFloat(pr);
-            if (!isNaN(calc)) setPosAmounts(function(prev) {
-              var n = { ...prev };
-              n[inv.id + "_value"] = calc.toFixed(2);
-              return n;
-            });
-          }
-        }
-      ), /* @__PURE__ */ React.createElement(AmtInput, { itemId: inv.id + "_value", label: "Total value (" + String(inv.currency || "USD") + ") \u2014 auto-calculated", existing: inv.currentValue ? String(inv.currentValue) : null }));
+      return /* @__PURE__ */ React.createElement("div", { key: inv.id, style: { background: C.s2, borderRadius: 10, padding: "12px 14px", marginBottom: 10, border: "1px solid transparent" } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 4 } }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 13, fontWeight: 700, color: C.text } }, inv.name), inv.ticker && /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11, color: C.accent, fontFamily: "monospace" } }, inv.ticker)), /* @__PURE__ */ React.createElement("span", { style: { fontSize: 10, background: inv.status === "locked" ? "rgba(212,134,10,0.1)" : "rgba(42,157,111,0.1)", padding: "2px 8px", borderRadius: 20, color: inv.status === "locked" ? "#d4860a" : C.accent, border: "1px solid " + (inv.status === "locked" ? "#d4860a44" : C.accent + "44") } }, inv.status === "locked" ? "\u{1F512} Locked" : "Available")), /* @__PURE__ */ React.createElement(ROField, { label: "Provider", value: inv.provider }), /* @__PURE__ */ React.createElement(ROField, { label: "Account #", value: inv.accountNumber }), /* @__PURE__ */ React.createElement(ROField, { label: "Currency", value: inv.currency || "USD" }), /* @__PURE__ */ React.createElement(ROField, { label: "Initial shares", value: inv.initialShares ? String(inv.initialShares) : null }), /* @__PURE__ */ React.createElement(ROField, { label: "Initial price", value: inv.purchasePrice ? String(inv.purchasePrice) : null }), inv.unlockDate && /* @__PURE__ */ React.createElement(ROField, { label: "Unlock date", value: inv.unlockDate }), /* @__PURE__ */ React.createElement("div", { style: { height: 1, background: C.border, margin: "8px 0" } }), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11, fontWeight: 700, color: C.muted, marginBottom: 4 } }, "Update current values"), amtRow(inv.id + "_shares", "Current shares", inv.shares ? String(inv.shares) : null, void 0, function(sh) {
+        var pr = posAmounts[inv.id + "_price"] !== void 0 ? posAmounts[inv.id + "_price"] : inv.currentPrice || "";
+        var calc = parseFloat(sh) * parseFloat(pr);
+        if (!isNaN(calc)) setPosAmounts(function(prev) {
+          var n = { ...prev };
+          n[inv.id + "_value"] = calc.toFixed(2);
+          return n;
+        });
+      }), amtRow(inv.id + "_price", "Current price (" + String(inv.currency || "USD") + ")", inv.currentPrice ? String(inv.currentPrice) : null, void 0, function(pr) {
+        var sh = posAmounts[inv.id + "_shares"] !== void 0 ? posAmounts[inv.id + "_shares"] : inv.shares || "";
+        var calc = parseFloat(sh) * parseFloat(pr);
+        if (!isNaN(calc)) setPosAmounts(function(prev) {
+          var n = { ...prev };
+          n[inv.id + "_value"] = calc.toFixed(2);
+          return n;
+        });
+      }), amtRow(inv.id + "_value", "Total value (" + String(inv.currency || "USD") + ") \u2014 auto-calculated", inv.currentValue ? String(inv.currentValue) : null, void 0, void 0));
     });
   }
   function PropertiesSection() {
     return properties.length === 0 ? /* @__PURE__ */ React.createElement("div", { style: { textAlign: "center", padding: "24px", color: C.dim, fontSize: 12 } }, "No properties set up. Add them in Config Data \u2192 \u{1F4B0} Financial Position.") : properties.map(function(prop) {
       var existingVal = prop.currentValue || "";
       var existingMort = prop.outstandingMortgage || "";
-      return /* @__PURE__ */ React.createElement(ItemCard, { key: prop.id }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 4 } }, prop.name), prop.address && /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11, color: C.dim, marginBottom: 4 } }, prop.address), /* @__PURE__ */ React.createElement(ROField, { label: "Currency", value: prop.currency || "AED" }), /* @__PURE__ */ React.createElement(ROField, { label: "Purchase price", value: prop.purchasePrice ? Number(prop.purchasePrice).toLocaleString() : null }), /* @__PURE__ */ React.createElement(ROField, { label: "Purchase date", value: prop.purchaseDate }), prop.mortgageProvider && /* @__PURE__ */ React.createElement(ROField, { label: "Mortgage provider", value: prop.mortgageProvider }), prop.initialMortgage && /* @__PURE__ */ React.createElement(ROField, { label: "Initial mortgage", value: Number(prop.initialMortgage).toLocaleString() }), (prop.mortgageStartYear || prop.mortgageEndYear) && /* @__PURE__ */ React.createElement(ROField, { label: "Mortgage period", value: (prop.mortgageStartYear || "?") + " \u2192 " + (prop.mortgageEndYear || "?") }), /* @__PURE__ */ React.createElement("div", { style: { height: 1, background: C.border, margin: "8px 0" } }), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11, fontWeight: 700, color: C.muted, marginBottom: 4 } }, "Update current values"), /* @__PURE__ */ React.createElement(AmtInput, { itemId: prop.id + "_val", label: "Current market value (" + String(prop.currency || "AED") + ")", existing: existingVal ? String(existingVal) : null }), (() => {
+      return /* @__PURE__ */ React.createElement("div", { key: prop.id, style: { background: C.s2, borderRadius: 10, padding: "12px 14px", marginBottom: 10, border: "1px solid transparent" } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 4 } }, prop.name), prop.address && /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11, color: C.dim, marginBottom: 4 } }, prop.address), /* @__PURE__ */ React.createElement(ROField, { label: "Currency", value: prop.currency || "AED" }), /* @__PURE__ */ React.createElement(ROField, { label: "Purchase price", value: prop.purchasePrice ? Number(prop.purchasePrice).toLocaleString() : null }), /* @__PURE__ */ React.createElement(ROField, { label: "Purchase date", value: prop.purchaseDate }), prop.mortgageProvider && /* @__PURE__ */ React.createElement(ROField, { label: "Mortgage provider", value: prop.mortgageProvider }), prop.initialMortgage && /* @__PURE__ */ React.createElement(ROField, { label: "Initial mortgage", value: Number(prop.initialMortgage).toLocaleString() }), (prop.mortgageStartYear || prop.mortgageEndYear) && /* @__PURE__ */ React.createElement(ROField, { label: "Mortgage period", value: (prop.mortgageStartYear || "?") + " \u2192 " + (prop.mortgageEndYear || "?") }), /* @__PURE__ */ React.createElement("div", { style: { height: 1, background: C.border, margin: "8px 0" } }), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11, fontWeight: 700, color: C.muted, marginBottom: 4 } }, "Update current values"), amtRow(prop.id + "_val", "Current market value (" + String(prop.currency || "AED") + ")", existingVal ? String(existingVal) : null, void 0, void 0), (() => {
         var linkedLoan = prop.mortgageId ? loans.find(function(l) {
           return l.id === prop.mortgageId;
         }) : null;
@@ -2911,7 +2929,7 @@ function FinancialPositionPanel({ financials, setFinancials, onSave, onClose }) 
       var existingBal = loan.outstandingBalance || "";
       var existingPmt = loan.currentMonthlyPayment || loan.monthlyPayment || "";
       var existingEnd = loan.currentEndDate || loan.endDate || "";
-      return /* @__PURE__ */ React.createElement(ItemCard, { key: loan.id }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 4 } }, loan.name), /* @__PURE__ */ React.createElement(ROField, { label: "Lender", value: loan.lender }), /* @__PURE__ */ React.createElement(ROField, { label: "Type", value: loan.loanType }), /* @__PURE__ */ React.createElement(ROField, { label: "Currency", value: loan.currency || "AED" }), /* @__PURE__ */ React.createElement(ROField, { label: "Original amount", value: loan.originalAmount ? Number(loan.originalAmount).toLocaleString() : null }), /* @__PURE__ */ React.createElement(ROField, { label: "Original monthly payment", value: loan.monthlyPayment ? Number(loan.monthlyPayment).toLocaleString() : null }), /* @__PURE__ */ React.createElement(ROField, { label: "Start date", value: loan.startDate }), /* @__PURE__ */ React.createElement(ROField, { label: "Original end date", value: loan.endDate }), /* @__PURE__ */ React.createElement("div", { style: { height: 1, background: C.border, margin: "8px 0" } }), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11, fontWeight: 700, color: C.muted, marginBottom: 4 } }, "Update current values"), /* @__PURE__ */ React.createElement(AmtInput, { itemId: loan.id + "_bal", label: "Outstanding balance (" + String(loan.currency || "AED") + ")", existing: existingBal ? String(existingBal) : null }), /* @__PURE__ */ React.createElement(AmtInput, { itemId: loan.id + "_pmt", label: "Current monthly payment (" + String(loan.currency || "AED") + ")", existing: existingPmt ? String(existingPmt) : null }), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8, marginTop: 8 } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11, color: C.muted, flexShrink: 0 } }, "Current end date"), /* @__PURE__ */ React.createElement(
+      return /* @__PURE__ */ React.createElement("div", { key: loan.id, style: { background: C.s2, borderRadius: 10, padding: "12px 14px", marginBottom: 10, border: "1px solid transparent" } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 4 } }, loan.name), /* @__PURE__ */ React.createElement(ROField, { label: "Lender", value: loan.lender }), /* @__PURE__ */ React.createElement(ROField, { label: "Type", value: loan.loanType }), /* @__PURE__ */ React.createElement(ROField, { label: "Currency", value: loan.currency || "AED" }), /* @__PURE__ */ React.createElement(ROField, { label: "Original amount", value: loan.originalAmount ? Number(loan.originalAmount).toLocaleString() : null }), /* @__PURE__ */ React.createElement(ROField, { label: "Original monthly payment", value: loan.monthlyPayment ? Number(loan.monthlyPayment).toLocaleString() : null }), /* @__PURE__ */ React.createElement(ROField, { label: "Start date", value: loan.startDate }), /* @__PURE__ */ React.createElement(ROField, { label: "Original end date", value: loan.endDate }), /* @__PURE__ */ React.createElement("div", { style: { height: 1, background: C.border, margin: "8px 0" } }), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11, fontWeight: 700, color: C.muted, marginBottom: 4 } }, "Update current values"), amtRow(loan.id + "_bal", "Outstanding balance (" + String(loan.currency || "AED") + ")", existingBal ? String(existingBal) : null, void 0, void 0), amtRow(loan.id + "_pmt", "Current monthly payment (" + String(loan.currency || "AED") + ")", existingPmt ? String(existingPmt) : null, void 0, void 0), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8, marginTop: 8 } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11, color: C.muted, flexShrink: 0 } }, "Current end date"), /* @__PURE__ */ React.createElement(
         "input",
         {
           type: "date",
@@ -2946,7 +2964,7 @@ function FinancialPositionPanel({ financials, setFinancials, onSave, onClose }) 
       setDebtEdit(null);
     }
     return /* @__PURE__ */ React.createElement("div", null, debtEdit && /* @__PURE__ */ React.createElement("div", { style: { background: C.surface, border: "1px solid " + C.accent + "44", borderRadius: 12, padding: "14px", marginBottom: 12 } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 13, fontWeight: 700, marginBottom: 10 } }, debtEdit.new ? "Add Debt" : "Edit Debt"), /* @__PURE__ */ React.createElement(LabelRow, { label: "Person" }, /* @__PURE__ */ React.createElement("input", { value: debtEdit.person || "", onChange: (e) => setDebtEdit((p) => ({ ...p, person: e.target.value })), placeholder: "e.g. Ahmed, Brother", style: inp2() })), /* @__PURE__ */ React.createElement(LabelRow, { label: "Direction" }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 6 } }, [["owed_to_me", "They owe me"], ["owed_by_me", "I owe them"]].map(([v, l]) => /* @__PURE__ */ React.createElement("button", { key: v, onClick: () => setDebtEdit((p) => ({ ...p, debtType: v })), style: { flex: 1, padding: "8px 0", borderRadius: 10, border: `1px solid ${debtEdit.debtType === v ? C.accent : C.border}`, background: debtEdit.debtType === v ? "rgba(42,157,111,0.08)" : "transparent", color: debtEdit.debtType === v ? C.accent : C.muted, fontSize: 12, cursor: "pointer", fontFamily: "inherit", fontWeight: debtEdit.debtType === v ? 700 : 400 } }, l)))), /* @__PURE__ */ React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 } }, /* @__PURE__ */ React.createElement(LabelRow, { label: "Currency" }, /* @__PURE__ */ React.createElement("select", { value: debtEdit.currency || "AED", onChange: (e) => setDebtEdit((p) => ({ ...p, currency: e.target.value })), style: { ...inp2(), appearance: "none" } }, CURRENCIES.map((c) => /* @__PURE__ */ React.createElement("option", { key: c }, c)))), /* @__PURE__ */ React.createElement(LabelRow, { label: "Amount" }, /* @__PURE__ */ React.createElement("input", { type: "text", inputMode: "decimal", value: debtEdit.amount || "", onChange: (e) => setDebtEdit((p) => ({ ...p, amount: e.target.value })), placeholder: "0.00", style: inp2({ fontFamily: "monospace" }) }))), /* @__PURE__ */ React.createElement(LabelRow, { label: "Due Date (optional)" }, /* @__PURE__ */ React.createElement("input", { type: "date", value: debtEdit.dueDate || "", onChange: (e) => setDebtEdit((p) => ({ ...p, dueDate: e.target.value })), style: { ...inp2(), colorScheme: "light" } })), /* @__PURE__ */ React.createElement(LabelRow, { label: "Notes (optional)" }, /* @__PURE__ */ React.createElement("input", { value: debtEdit.notes || "", onChange: (e) => setDebtEdit((p) => ({ ...p, notes: e.target.value })), placeholder: "e.g. For car purchase", style: inp2() })), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 8, marginTop: 10 } }, /* @__PURE__ */ React.createElement("button", { onClick: saveDebt, style: { ...btn(C.accent, "#fff", "none", 13, "8px 0"), flex: 1 } }, "\u2713 Save"), /* @__PURE__ */ React.createElement("button", { onClick: () => setDebtEdit(null), style: btn(C.s2, C.muted, "1px solid " + C.border, 12, "8px 12px") }, "Cancel"))), debts.map(function(d) {
-      return /* @__PURE__ */ React.createElement(ItemCard, { key: d.id }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center" } }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 13, fontWeight: 700, color: C.text } }, d.person), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11, color: C.dim } }, d.debtType === "owed_to_me" ? "They owe you" : "You owe them", " \xB7 ", d.currency || "AED", " ", Number(d.amount || 0).toLocaleString(), d.dueDate ? " \xB7 due " + d.dueDate : ""), d.notes && /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11, color: C.dim } }, d.notes)), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 6 } }, /* @__PURE__ */ React.createElement("button", { onClick: () => setDebtEdit({ id: d.id, person: d.person, debtType: d.debtType || "owed_to_me", currency: d.currency || "AED", amount: String(d.amount || ""), dueDate: d.dueDate || "", notes: d.notes || "" }), style: btn(C.s3, C.muted, "1px solid " + C.border, 11, "4px 8px") }, "\u270F\uFE0F"), /* @__PURE__ */ React.createElement("button", { onClick: () => {
+      return /* @__PURE__ */ React.createElement("div", { key: d.id, style: { background: C.s2, borderRadius: 10, padding: "12px 14px", marginBottom: 10, border: "1px solid transparent" } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center" } }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 13, fontWeight: 700, color: C.text } }, d.person), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11, color: C.dim } }, d.debtType === "owed_to_me" ? "They owe you" : "You owe them", " \xB7 ", d.currency || "AED", " ", Number(d.amount || 0).toLocaleString(), d.dueDate ? " \xB7 due " + d.dueDate : ""), d.notes && /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11, color: C.dim } }, d.notes)), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 6 } }, /* @__PURE__ */ React.createElement("button", { onClick: () => setDebtEdit({ id: d.id, person: d.person, debtType: d.debtType || "owed_to_me", currency: d.currency || "AED", amount: String(d.amount || ""), dueDate: d.dueDate || "", notes: d.notes || "" }), style: btn(C.s3, C.muted, "1px solid " + C.border, 11, "4px 8px") }, "\u270F\uFE0F"), /* @__PURE__ */ React.createElement("button", { onClick: () => {
         if (window.confirm("Delete this debt?")) upd("debts", function(arr) {
           return arr.filter(function(x) {
             return x.id !== d.id;
@@ -2974,7 +2992,7 @@ function FinancialPositionPanel({ financials, setFinancials, onSave, onClose }) 
     }
     return /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 12, color: C.muted, marginBottom: 10, lineHeight: 1.5 } }, "Expected future income or expenses \u2014 used in financial forecasting."), fcastEdit && /* @__PURE__ */ React.createElement("div", { style: { background: C.surface, border: "1px solid " + C.accent + "44", borderRadius: 12, padding: "14px", marginBottom: 12 } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 13, fontWeight: 700, marginBottom: 10 } }, fcastEdit.new ? "Add Event" : "Edit Event"), /* @__PURE__ */ React.createElement(LabelRow, { label: "Event" }, /* @__PURE__ */ React.createElement("input", { value: fcastEdit.label || "", onChange: (e) => setFcastEdit((p) => ({ ...p, label: e.target.value })), placeholder: "e.g. Annual Bonus, RSU Vest, Holiday", style: inp2() })), /* @__PURE__ */ React.createElement(LabelRow, { label: "Type" }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 6 } }, [["income", "+ Income"], ["expense", "- Expense"]].map(([v, l]) => /* @__PURE__ */ React.createElement("button", { key: v, onClick: () => setFcastEdit((p) => ({ ...p, eventType: v })), style: { flex: 1, padding: "8px 0", borderRadius: 10, border: `1px solid ${fcastEdit.eventType === v ? v === "income" ? C.accent : C.danger : C.border}`, background: fcastEdit.eventType === v ? v === "income" ? "rgba(42,157,111,0.08)" : "rgba(217,64,64,0.08)" : "transparent", color: fcastEdit.eventType === v ? v === "income" ? C.accent : C.danger : C.muted, fontSize: 12, cursor: "pointer", fontFamily: "inherit", fontWeight: fcastEdit.eventType === v ? 700 : 400 } }, l)))), /* @__PURE__ */ React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 } }, /* @__PURE__ */ React.createElement(LabelRow, { label: "Amount" }, /* @__PURE__ */ React.createElement("input", { type: "text", inputMode: "decimal", value: fcastEdit.amount || "", onChange: (e) => setFcastEdit((p) => ({ ...p, amount: e.target.value })), placeholder: "0", style: inp2({ fontFamily: "monospace" }) })), /* @__PURE__ */ React.createElement(LabelRow, { label: "Currency" }, /* @__PURE__ */ React.createElement("select", { value: fcastEdit.currency || "AED", onChange: (e) => setFcastEdit((p) => ({ ...p, currency: e.target.value })), style: { ...inp2(), appearance: "none" } }, CURRENCIES.map((c) => /* @__PURE__ */ React.createElement("option", { key: c }, c))))), /* @__PURE__ */ React.createElement(LabelRow, { label: "Expected Date" }, /* @__PURE__ */ React.createElement("input", { type: "date", value: fcastEdit.date || "", onChange: (e) => setFcastEdit((p) => ({ ...p, date: e.target.value })), style: { ...inp2(), colorScheme: "light" } })), /* @__PURE__ */ React.createElement(LabelRow, { label: "Confidence" }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 6 } }, [["certain", "\u2705 Certain"], ["likely", "\u{1F7E1} Likely"], ["possible", "\u26AA Possible"]].map(([v, l]) => /* @__PURE__ */ React.createElement("button", { key: v, onClick: () => setFcastEdit((p) => ({ ...p, confidence: v })), style: { flex: 1, padding: "7px 0", borderRadius: 10, border: `1px solid ${fcastEdit.confidence === v ? C.accent : C.border}`, background: fcastEdit.confidence === v ? "rgba(42,157,111,0.08)" : "transparent", color: fcastEdit.confidence === v ? C.accent : C.muted, fontSize: 11, cursor: "pointer", fontFamily: "inherit", fontWeight: fcastEdit.confidence === v ? 700 : 400 } }, l)))), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 8, marginTop: 10 } }, /* @__PURE__ */ React.createElement("button", { onClick: saveFcast, style: { ...btn(C.accent, "#fff", "none", 13, "8px 0"), flex: 1 } }, "\u2713 Save"), /* @__PURE__ */ React.createElement("button", { onClick: () => setFcastEdit(null), style: btn(C.s2, C.muted, "1px solid " + C.border, 12, "8px 12px") }, "Cancel"))), forecastEvts.length === 0 && !fcastEdit && /* @__PURE__ */ React.createElement("div", { style: { textAlign: "center", padding: "20px", color: C.dim, fontSize: 12, background: C.s2, borderRadius: 10, marginBottom: 8 } }, "No future events yet"), forecastEvts.map(function(ev) {
       var isInc = ev.eventType === "income";
-      return /* @__PURE__ */ React.createElement(ItemCard, { key: ev.id }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center" } }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 13, fontWeight: 700, color: C.text } }, ev.label), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11, color: isInc ? C.accent : C.danger } }, isInc ? "+" : "\u2212", " ", ev.currency || "AED", " ", Number(ev.amount || 0).toLocaleString(), " \xB7 ", ev.date || "no date", " \xB7 ", ev.confidence || "likely")), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 6 } }, /* @__PURE__ */ React.createElement("button", { onClick: () => setFcastEdit({ id: ev.id, label: ev.label, eventType: ev.eventType || "expense", amount: String(ev.amount || ""), currency: ev.currency || "AED", date: ev.date || "", confidence: ev.confidence || "likely" }), style: btn(C.s3, C.muted, "1px solid " + C.border, 11, "4px 8px") }, "\u270F\uFE0F"), /* @__PURE__ */ React.createElement("button", { onClick: () => {
+      return /* @__PURE__ */ React.createElement("div", { key: ev.id, style: { background: C.s2, borderRadius: 10, padding: "12px 14px", marginBottom: 10, border: "1px solid transparent" } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center" } }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 13, fontWeight: 700, color: C.text } }, ev.label), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11, color: isInc ? C.accent : C.danger } }, isInc ? "+" : "\u2212", " ", ev.currency || "AED", " ", Number(ev.amount || 0).toLocaleString(), " \xB7 ", ev.date || "no date", " \xB7 ", ev.confidence || "likely")), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 6 } }, /* @__PURE__ */ React.createElement("button", { onClick: () => setFcastEdit({ id: ev.id, label: ev.label, eventType: ev.eventType || "expense", amount: String(ev.amount || ""), currency: ev.currency || "AED", date: ev.date || "", confidence: ev.confidence || "likely" }), style: btn(C.s3, C.muted, "1px solid " + C.border, 11, "4px 8px") }, "\u270F\uFE0F"), /* @__PURE__ */ React.createElement("button", { onClick: () => {
         if (window.confirm("Delete?")) upd("forecastEvents", function(arr) {
           return arr.filter(function(x) {
             return x.id !== ev.id;

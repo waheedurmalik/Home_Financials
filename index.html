@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+
 <html lang="en">
 <head>
   <meta charset="UTF-8"/>
@@ -2284,7 +2285,7 @@ function ForecastTab({ transactions, financials, displayCurrency, displayRates, 
             } else {
               eventsOut += amt;
             }
-            eventsThisMonth.push({ id: ev.id + "_" + dp.date, label: ev.label, eventType: ev.eventType, dispAmount: amt, currency: ev.currency || "AED" });
+            eventsThisMonth.push({ id: ev.id + "_" + dp.date, label: ev.label, eventType: ev.eventType, dispAmount: amt });
           }
         });
       });
@@ -2621,7 +2622,6 @@ function ForecastTab({ transactions, financials, displayCurrency, displayRates, 
           width: "100%",
           height: H,
           preserveAspectRatio: "none",
-          // fill full width at fixed height — no letterboxing
           style: { display: "block" }
         },
         React.createElement(
@@ -2637,23 +2637,22 @@ function ForecastTab({ transactions, financials, displayCurrency, displayRates, 
         zeroY && React.createElement("line", { x1: pad, y1: zeroY.toFixed(1), x2: W - pad, y2: zeroY.toFixed(1), stroke: "#cdd1db", strokeWidth: 1, strokeDasharray: "3,3" }),
         React.createElement("path", { d: d + " L" + (W - pad) + "," + (H - pad) + " L" + pad + "," + (H - pad) + " Z", fill: "url(#fcGrad)" }),
         React.createElement("path", { d, fill: "none", stroke: "#2a9d6f", strokeWidth: 2, strokeLinejoin: "round", strokeLinecap: "round" }),
-        // Orange event dots — tappable for tooltip
         projection.map(function(r, i) {
           if (r.events.length === 0) return null;
           var p = pts[i];
-          var isHovered = sparkTooltip !== null && sparkTooltip.monthIdx === i;
+          var active = sparkTooltip && sparkTooltip.monthIdx === i;
           return React.createElement("circle", {
             key: r.monthKey,
             cx: p[0].toFixed(1),
             cy: p[1].toFixed(1),
-            r: isHovered ? 6 : 4,
+            r: active ? 6 : 4,
             fill: "#f4a261",
             stroke: "#fff",
-            strokeWidth: isHovered ? 2 : 1.5,
+            strokeWidth: active ? 2 : 1.5,
             style: { cursor: "pointer" },
             onClick: function(e) {
               e.stopPropagation();
-              setSparkTooltip(sparkTooltip && sparkTooltip.monthIdx === i ? null : { monthIdx: i });
+              setSparkTooltip(active ? null : { monthIdx: i });
             },
             onMouseEnter: function() {
               setHoverMonth(i);
@@ -2664,9 +2663,7 @@ function ForecastTab({ transactions, financials, displayCurrency, displayRates, 
             }
           });
         }),
-        // Blue hover dot on any month
         hoverMonth !== null && pts[hoverMonth] && React.createElement("circle", { cx: pts[hoverMonth][0].toFixed(1), cy: pts[hoverMonth][1].toFixed(1), r: 5, fill: "#2a9d6f", stroke: "#fff", strokeWidth: 2 }),
-        // Invisible hover rects across full height — do not clear sparkTooltip on plain hover
         pts.map(function(p, i) {
           return React.createElement("rect", {
             key: i,
@@ -2685,7 +2682,6 @@ function ForecastTab({ transactions, financials, displayCurrency, displayRates, 
           });
         })
       ),
-      // Event tooltip — shown when an orange dot is hovered or tapped
       tooltipData && tooltipData.events.length > 0 && React.createElement(
         "div",
         {
@@ -2699,7 +2695,7 @@ function ForecastTab({ transactions, financials, displayCurrency, displayRates, 
             borderRadius: 10,
             padding: "8px 12px",
             fontSize: 11,
-            lineHeight: 1.5,
+            lineHeight: 1.6,
             pointerEvents: "none",
             zIndex: 10,
             minWidth: 160,
@@ -2714,28 +2710,17 @@ function ForecastTab({ transactions, financials, displayCurrency, displayRates, 
           tooltipData.label + " " + tooltipData.year
         ),
         tooltipData.events.map(function(ev, i) {
-          var isIncome = ev.eventType === "income";
+          var isInc = ev.eventType === "income";
           return React.createElement(
             "div",
-            { key: i, style: {
-              display: "flex",
-              justifyContent: "space-between",
-              gap: 12,
-              color: isIncome ? "#4ade80" : "#f87171"
-            } },
-            React.createElement("span", null, (isIncome ? "\u2191 " : "\u2193 ") + ev.label),
+            { key: i, style: { display: "flex", justifyContent: "space-between", gap: 12, color: isInc ? "#4ade80" : "#f87171" } },
+            React.createElement("span", null, (isInc ? "\u2191 " : "\u2193 ") + ev.label),
             React.createElement("span", { style: { fontFamily: "monospace", fontWeight: 600 } }, fmtF(ev.dispAmount))
           );
         }),
         React.createElement(
           "div",
-          { style: {
-            marginTop: 5,
-            paddingTop: 5,
-            borderTop: "1px solid rgba(255,255,255,0.15)",
-            color: "#a0aec0",
-            fontSize: 10
-          } },
+          { style: { marginTop: 5, paddingTop: 5, borderTop: "1px solid rgba(255,255,255,0.15)", color: "#a0aec0", fontSize: 10 } },
           "Closing: " + fmtFSigned(tooltipData.closing)
         )
       )
@@ -3142,7 +3127,7 @@ function ForecastTab({ transactions, financials, displayCurrency, displayRates, 
           return React.createElement("div", { key: m.key, style: { fontSize: 9, color: C2.dim } }, m.label + " " + m.year);
         })
       ),
-      React.createElement("div", { style: { fontSize: 10, color: C2.dim, marginTop: 6 } }, "\u{1F7E0} tap dots for event details  \u254C zero line  \xB7 tap blue cells to edit balances")
+      React.createElement("div", { style: { fontSize: 10, color: C2.dim, marginTop: 6 } }, "\u{1F7E0} tap orange dots for event details  \u254C zero line  \xB7 tap blue cells to edit balances")
     ),
     // Unified table
     React.createElement(
@@ -3214,12 +3199,24 @@ function ForecastTab({ transactions, financials, displayCurrency, displayRates, 
             { style: { background: "rgba(74,98,216,0.08)" } },
             React.createElement(
               "td",
-              {
-                colSpan: MONTHS.length + 1,
-                style: { padding: "5px 12px", fontSize: 10, fontWeight: 800, color: "#4a62d8", letterSpacing: "0.07em" }
-              },
-              "\u25B8 STARTING POSITION \u2014 enter current balances in the first column"
-            )
+              { style: {
+                position: "sticky",
+                left: 0,
+                zIndex: 2,
+                background: "rgba(209,218,246,0.97)",
+                padding: "5px 12px",
+                fontSize: 10,
+                fontWeight: 800,
+                color: "#4a62d8",
+                letterSpacing: "0.07em",
+                minWidth: 152,
+                maxWidth: 152,
+                width: 152,
+                whiteSpace: "nowrap"
+              } },
+              "\u25B8 STARTING POSITION"
+            ),
+            React.createElement("td", { colSpan: MONTHS.length, style: { background: "rgba(74,98,216,0.05)", padding: "5px 4px", fontSize: 10, color: "#4a62d8", opacity: 0.7 } }, "enter current balances in the first column")
           ),
           // One row per current account + cash item
           startingRowsMemo.map(function(row) {
@@ -3273,12 +3270,24 @@ function ForecastTab({ transactions, financials, displayCurrency, displayRates, 
             { style: { background: "rgba(42,157,111,0.09)" } },
             React.createElement(
               "td",
-              {
-                colSpan: MONTHS.length + 1,
-                style: { padding: "5px 12px", fontSize: 10, fontWeight: 800, color: C2.accent, letterSpacing: "0.07em" }
-              },
+              { style: {
+                position: "sticky",
+                left: 0,
+                zIndex: 2,
+                background: "rgba(220,243,234,0.97)",
+                padding: "5px 12px",
+                fontSize: 10,
+                fontWeight: 800,
+                color: C2.accent,
+                letterSpacing: "0.07em",
+                minWidth: 152,
+                maxWidth: 152,
+                width: 152,
+                whiteSpace: "nowrap"
+              } },
               "\u25B8 CREDITS"
-            )
+            ),
+            React.createElement("td", { colSpan: MONTHS.length, style: { background: "rgba(42,157,111,0.04)" } })
           ),
           // Salary
           React.createElement(
@@ -3354,12 +3363,24 @@ function ForecastTab({ transactions, financials, displayCurrency, displayRates, 
             { style: { background: "rgba(217,64,64,0.08)" } },
             React.createElement(
               "td",
-              {
-                colSpan: MONTHS.length + 1,
-                style: { padding: "5px 12px", fontSize: 10, fontWeight: 800, color: C2.danger, letterSpacing: "0.07em" }
-              },
+              { style: {
+                position: "sticky",
+                left: 0,
+                zIndex: 2,
+                background: "rgba(248,225,225,0.97)",
+                padding: "5px 12px",
+                fontSize: 10,
+                fontWeight: 800,
+                color: C2.danger,
+                letterSpacing: "0.07em",
+                minWidth: 152,
+                maxWidth: 152,
+                width: 152,
+                whiteSpace: "nowrap"
+              } },
               "\u25B8 OUTGOINGS"
-            )
+            ),
+            React.createElement("td", { colSpan: MONTHS.length, style: { background: "rgba(217,64,64,0.04)" } })
           ),
           // Budget category rows
           budgetRowsMemo.map(function(br) {
@@ -3513,12 +3534,24 @@ function ForecastTab({ transactions, financials, displayCurrency, displayRates, 
             { style: { background: "rgba(42,157,111,0.04)" } },
             React.createElement(
               "td",
-              {
-                colSpan: MONTHS.length + 1,
-                style: { padding: "5px 12px", fontSize: 10, fontWeight: 800, color: C2.text, letterSpacing: "0.07em" }
-              },
+              { style: {
+                position: "sticky",
+                left: 0,
+                zIndex: 2,
+                background: "rgba(236,241,235,0.97)",
+                padding: "5px 12px",
+                fontSize: 10,
+                fontWeight: 800,
+                color: C2.text,
+                letterSpacing: "0.07em",
+                minWidth: 152,
+                maxWidth: 152,
+                width: 152,
+                whiteSpace: "nowrap"
+              } },
               "\u25B8 NET"
-            )
+            ),
+            React.createElement("td", { colSpan: MONTHS.length, style: { background: "rgba(42,157,111,0.03)" } })
           ),
           // Opening Balance (= effectiveStart for month 0, prev closing for months 1-35)
           React.createElement(
@@ -5514,7 +5547,7 @@ function App() {
     return sorted;
   }, [mTxs, txFilter, txSort, txSearch, txAccFilter, txCatFilter, txSubFilter, dupesMode, selTxs]);
   const TABS = [["summary", "\u{1F4CB}"], ["position", "\u{1F4BC}"], ["forecast", "\u{1F4C8}"], ["overview", "\u{1F4CA}"], ["budget", "\u{1F3AF}"], ["watchout", "\u{1F514}"], ["categories", "\u{1F3F7}\uFE0F"], ["subcategories", "\u{1F516}"], ["transactions", "\u{1F4B3}"], ["vendors", "\u{1F3EA}"]];
-  const TAB_LABELS = { summary: "Summary", position: "Fin. Position", overview: "Overview", budget: "Budget", watchout: "Spend Alert", categories: "Categories", subcategories: "Subcategories", transactions: "Transactions", vendors: "Vendors" };
+  const TAB_LABELS = { summary: "Summary", position: "Fin. Position", forecast: "Forecast Cashflow", overview: "Overview", budget: "Budget", watchout: "Spend Alert", categories: "Categories", subcategories: "Subcategories", transactions: "Transactions", vendors: "Vendors" };
   if (fbUser === void 0) return /* @__PURE__ */ React.createElement("div", { style: { minHeight: "100vh", background: "#ecf1eb", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12 } }, /* @__PURE__ */ React.createElement("img", { src: "logo.png", alt: "Home Financials", style: { maxWidth: 280, width: "80%", height: "auto" } }), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 13, color: "#7a8699", marginTop: 8 } }, "Loading\u2026"));
   if (!fbUser) return /* @__PURE__ */ React.createElement(SignInScreen, { onSignedIn: function(user) {
     setFbUser(user);

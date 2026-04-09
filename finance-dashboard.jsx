@@ -238,7 +238,7 @@ function SignInScreen({onSignedIn}) {
 
   return (
     <div style={{minHeight:"100vh",background:"#ecf1eb",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:24}}>
-      <img src="logo.png" alt="Home Financials" style={{maxWidth:320,width:"90%",height:"auto",marginBottom:40}}/>
+      <img src="Home_financials_LOGO_White_Back.png" alt="Home Financials" style={{maxWidth:320,width:"90%",height:"auto",marginBottom:40}}/>
       <div style={{background:"#fff",borderRadius:20,padding:32,maxWidth:380,width:"100%",boxShadow:"0 4px 24px rgba(0,0,0,0.08)"}}>
         <div style={{fontSize:22,fontWeight:800,color:"#0f1624",marginBottom:8,textAlign:"center"}}>Welcome</div>
         <div style={{fontSize:14,color:"#7a8699",marginBottom:28,textAlign:"center",lineHeight:1.6}}>
@@ -1190,8 +1190,8 @@ function GeminiSection() {
           "Check Quotas ↗"))));
 }
 
-function ManageModal({taxonomy,setTaxonomy,vendorMap,setVendorMap,rawTxs,setRawTxs,financials,setFinancials,budgets,onClose}) {
-  const [section,setSection]=useState("categories"); // categories | vendors | financial
+function ManageModal({taxonomy,setTaxonomy,vendorMap,setVendorMap,rawTxs,setRawTxs,financials,setFinancials,budgets,initialSection,singleSection,onClose}) {
+  const [section,setSection]=useState(initialSection||"categories"); // categories | vendors | financial | forecast | transactions | gemini
   const [view,setView]=useState("list");
   const [selCat,setSelCat]=useState(null);
   const [selSub,setSelSub]=useState(null);
@@ -1317,13 +1317,14 @@ function ManageModal({taxonomy,setTaxonomy,vendorMap,setVendorMap,rawTxs,setRawT
           </div>
         )}
 
-        {/* Section tabs */}
+        {/* Section tabs — hidden when opened to a specific section from HomeTab */}
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
-          <div style={{display:"flex",gap:2,background:C.s2,borderRadius:10,padding:3,flexWrap:"wrap"}}>
+          {!singleSection&&<div style={{display:"flex",gap:2,background:C.s2,borderRadius:10,padding:3,flexWrap:"wrap"}}>
             {[["categories","🏷️ Categories"],["vendors","🏪 Vendors"],["financial","💰 Financial Position"],["forecast","📈 Forecast"],["transactions","🔖 Tag Accounts"],["gemini","🤖 Gemini Usage"]].map(([s,l])=>(
               <button key={s} onClick={()=>{setSection(s);setView("list");setVendorSel(new Set());setVendorSaved(false);setVendorTab("all");}} style={{padding:"7px 14px",borderRadius:8,border:"none",background:section===s?C.surface:"transparent",color:section===s?C.text:C.muted,fontWeight:section===s?700:500,fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>{l}</button>
             ))}
-          </div>
+          </div>}
+          {singleSection&&<div style={{fontSize:13,fontWeight:700,color:C.text}}>{{"categories":"🏷️ Categories","vendors":"🏪 Vendors","financial":"💰 Financial Position","forecast":"📈 Forecast","transactions":"🔖 Tag Accounts","gemini":"🤖 Gemini Usage"}[section]||""}</div>}
           <button onClick={onClose} style={btn(C.s2,C.muted,`1px solid ${C.border}`,12,"7px 14px")}>✕ Close</button>
         </div>
 
@@ -3233,10 +3234,13 @@ function VendorView({transactions, currency, dispRates, pFrom, pTo, selMonths}) 
     return m;
   },[transactions]);
 
-  // Build vendor total spend map
+  // Build vendor net amount map — credits positive, debits negative
   const vendorTotal = useMemo(()=>{
     const m={};
-    transactions.forEach(t=>{ m[t.description]=(m[t.description]||0)+t.amount; });
+    transactions.forEach(t=>{
+      const signed = t.isCredit ? t.amount : -t.amount;
+      m[t.description]=(m[t.description]||0)+signed;
+    });
     return m;
   },[transactions]);
 
@@ -3262,10 +3266,11 @@ function VendorView({transactions, currency, dispRates, pFrom, pTo, selMonths}) 
       if(!selected.has(t.description)) return;
       if(!stats[t.description]) stats[t.description]={period:0,thisMonth:0,lastMonth:0,ytd:0};
       const m=(t.date ? t.date.slice(0,7) : '');
-      stats[t.description].period+=t.amount; // transactions is already period/month filtered
-      if(m===thisM) stats[t.description].thisMonth+=t.amount;
-      if(m===lastM) stats[t.description].lastMonth+=t.amount;
-      if(t.date>=(today.getFullYear()+"-01-01")) stats[t.description].ytd+=t.amount;
+      const signed = t.isCredit ? t.amount : -t.amount;
+      stats[t.description].period+=signed;
+      if(m===thisM) stats[t.description].thisMonth+=signed;
+      if(m===lastM) stats[t.description].lastMonth+=signed;
+      if(t.date>=(today.getFullYear()+"-01-01")) stats[t.description].ytd+=signed;
     });
     return Object.entries(stats)
       .map(([v,s])=>({vendor:v,...s}))
@@ -3308,7 +3313,10 @@ function VendorView({transactions, currency, dispRates, pFrom, pTo, selMonths}) 
                 <div style={{width:18,height:18,borderRadius:4,border:`2px solid ${on?C.accent:C.border}`,background:on?C.accent:"transparent",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,color:"#fff",fontWeight:700,flexShrink:0}}>{on?"✓":""}</div>
                 <span style={{fontSize:13,color:on?C.text:C.muted,flex:1}}>{v}</span>
                 <div style={{textAlign:"right"}}>
-                  <div style={{fontSize:11,fontWeight:600,color:C.muted,fontFamily:"monospace"}}>{fmt(transactions.filter(t=>t.description===v).reduce((s,t)=>s+t.amount,0)||0,currency,dispRates)}</div>
+                  {(function(){
+                    var net=transactions.filter(function(t){return t.description===v;}).reduce(function(s,t){return s+(t.isCredit?t.amount:-t.amount);},0);
+                    return <div style={{fontSize:11,fontWeight:600,fontFamily:"monospace",color:net>=0?C.accent:C.danger}}>{net>=0?"+":"-"}{fmt(Math.abs(net),currency,dispRates)}</div>;
+                  })()}
                   <div style={{fontSize:10,color:C.dim}}>{fmtDNum(vendorLastDate[v])}</div>
                 </div>
               </div>
@@ -3329,7 +3337,7 @@ function VendorView({transactions, currency, dispRates, pFrom, pTo, selMonths}) 
           <div style={card}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
               <div style={{fontFamily:"inherit",fontSize:17}}>Transactions</div>
-              <span style={{fontSize:12,color:C.muted,fontFamily:"monospace"}}>{selTxs.length} · {fmt(selTxs.reduce((s,t)=>s+t.amount,0),currency,dispRates)}</span>
+              {(function(){var net=selTxs.reduce(function(s,t){return s+(t.isCredit?t.amount:-t.amount);},0);return <span style={{fontSize:12,fontFamily:"monospace",color:net>=0?C.accent:C.danger}}>{selTxs.length} · {net>=0?"+":"-"}{fmt(Math.abs(net),currency,dispRates)}</span>;})}
             </div>
             <div style={{background:C.bg,border:`1px solid ${C.border}`,borderRadius:12,overflow:"hidden"}}>
               {selTxs.length===0
@@ -4919,6 +4927,578 @@ function ForecastTab({transactions, financials, displayCurrency, displayRates, b
   ); // root
 }
 
+// ─── Home Tab (Phase C) ───────────────────────────────────────────────────────
+function HomeTab({transactions, financials, budgets, taxonomy, displayCurrency, dispRates, globalTypeFilter, setTab, setModal, setManageInitSection, setPositionUnlocked, spikeThreshold}) {
+  var [flippedCard,   setFlippedCard]   = useState(null); // 1–8 | null
+  var [flippedAction, setFlippedAction] = useState(null); // "input"|"manage"|"tools" | null
+  var [isWide,        setIsWide]        = useState(typeof window!=="undefined"&&window.innerWidth>=700);
+  var [isDark,        setIsDark]        = useState(typeof window!=="undefined"&&window.matchMedia("(prefers-color-scheme: dark)").matches);
+
+  useEffect(function(){
+    function onResize(){ setIsWide(window.innerWidth>=700); }
+    window.addEventListener("resize", onResize);
+    var mq = window.matchMedia("(prefers-color-scheme: dark)");
+    function onScheme(e){ setIsDark(e.matches); }
+    mq.addEventListener("change", onScheme);
+    return function(){ window.removeEventListener("resize", onResize); mq.removeEventListener("change", onScheme); };
+  },[]);
+
+  var now = new Date();
+  var _p2 = function(n){ return String(n).padStart(2,"0"); };
+  var thisYM  = now.getFullYear()+"-"+_p2(now.getMonth()+1);
+  var prevDate = new Date(now); prevDate.setMonth(prevDate.getMonth()-1);
+  var lastYM  = prevDate.getFullYear()+"-"+_p2(prevDate.getMonth()+1);
+
+  var greetHour = now.getHours();
+  var greetWord = greetHour<12?"Good morning":greetHour<17?"Good afternoon":"Good evening";
+  var dayNames  = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+  var monNames  = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+  var dateStr   = dayNames[now.getDay()]+", "+now.getDate()+" "+monNames[now.getMonth()]+" "+now.getFullYear();
+
+  // This-month transactions
+  var thisMoTxs = useMemo(function(){
+    return transactions.filter(function(t){ return t.date && t.date.slice(0,7)===thisYM; });
+  },[transactions, thisYM]);
+  var lastMoTxs = useMemo(function(){
+    return transactions.filter(function(t){ return t.date && t.date.slice(0,7)===lastYM; });
+  },[transactions, lastYM]);
+
+  // This-month spend by category (debits only, excluding Income)
+  var catSpend = useMemo(function(){
+    var m={};
+    thisMoTxs.forEach(function(t){
+      if(t.isCredit) return;
+      if(!globalTypeFilter.includes(t.txType)) return;
+      m[t.category]=(m[t.category]||0)+t.amount;
+    });
+    return Object.entries(m).filter(function(e){return e[0]&&e[0]!=="Income";}).sort(function(a,b){return b[1]-a[1];});
+  },[thisMoTxs, globalTypeFilter]);
+
+  // Top income category this month
+  var incomeBycat = useMemo(function(){
+    var m={};
+    thisMoTxs.forEach(function(t){
+      if(!t.isCredit||t.category!=="Income") return;
+      m[t.subcategory||"Income"]=(m[t.subcategory||"Income"]||0)+t.amount;
+    });
+    return Object.entries(m).sort(function(a,b){return b[1]-a[1];});
+  },[thisMoTxs]);
+
+  // Summary this month
+  var summaryThis = useMemo(function(){
+    var inc=0, exp=0;
+    thisMoTxs.forEach(function(t){
+      if(t.isCredit&&t.category==="Income") inc+=t.amount;
+      else if(!t.isCredit&&globalTypeFilter.includes(t.txType)) exp+=t.amount;
+    });
+    return {income:inc, expense:exp, net:inc-exp};
+  },[thisMoTxs, globalTypeFilter]);
+
+  // YTD net
+  var ytdNet = useMemo(function(){
+    var yr = String(now.getFullYear());
+    var n=0;
+    transactions.forEach(function(t){
+      if(!t.date||t.date.slice(0,4)!==yr) return;
+      if(t.isCredit&&t.category==="Income") n+=t.amount;
+      else if(!t.isCredit&&globalTypeFilter.includes(t.txType)) n-=t.amount;
+    });
+    return n;
+  },[transactions, globalTypeFilter]);
+
+  // Top 3 spend txs this month
+  var topSpend = useMemo(function(){
+    return thisMoTxs.filter(function(t){return !t.isCredit&&globalTypeFilter.includes(t.txType);})
+      .slice().sort(function(a,b){return b.amount-a.amount;}).slice(0,3);
+  },[thisMoTxs, globalTypeFilter]);
+
+  // Top 3 income txs this month
+  var topIncome = useMemo(function(){
+    return thisMoTxs.filter(function(t){return t.isCredit&&t.category==="Income";})
+      .slice().sort(function(a,b){return b.amount-a.amount;}).slice(0,3);
+  },[thisMoTxs]);
+
+  // Budget status
+  var budgetStatus = useMemo(function(){
+    var over=[], ok=[];
+    Object.entries(budgets||{}).forEach(function(entry){
+      var cat=entry[0], b=entry[1];
+      if(!b||!b.monthly) return;
+      var spent=catSpend.find(function(e){return e[0]===cat;});
+      var spentAmt = spent ? spent[1] : 0;
+      var pct = Math.round(spentAmt/b.monthly*100);
+      if(pct>100) over.push({cat:cat,pct:pct,spent:spentAmt,limit:b.monthly});
+      else ok.push({cat:cat,pct:pct,spent:spentAmt,limit:b.monthly});
+    });
+    over.sort(function(a,b){return b.pct-a.pct;});
+    return {over:over, ok:ok, all:over.concat(ok)};
+  },[budgets, catSpend]);
+
+  // Worst budget breach (for alert)
+  var worstBreach = budgetStatus.over.length>0 ? budgetStatus.over[0] : null;
+
+  // Spend alerts (spike detection — categories over threshold vs last month)
+  var spendAlerts = useMemo(function(){
+    var alerts=[];
+    var thisMap={}, lastMap={};
+    thisMoTxs.forEach(function(t){ if(!t.isCredit) thisMap[t.category]=(thisMap[t.category]||0)+t.amount; });
+    lastMoTxs.forEach(function(t){ if(!t.isCredit) lastMap[t.category]=(lastMap[t.category]||0)+t.amount; });
+    Object.entries(thisMap).forEach(function(entry){
+      var cat=entry[0], thisAmt=entry[1];
+      var lastAmt=lastMap[cat]||0;
+      if(lastAmt>0) {
+        var chg=Math.round((thisAmt-lastAmt)/lastAmt*100);
+        if(chg>=spikeThreshold) alerts.push({cat:cat,thisAmt:thisAmt,lastAmt:lastAmt,pct:chg});
+      }
+    });
+    return alerts.sort(function(a,b){return b.pct-a.pct;});
+  },[thisMoTxs, lastMoTxs, spikeThreshold]);
+
+  // Top spend vendors this month (debit only)
+  var topVendors = useMemo(function(){
+    var m={};
+    thisMoTxs.forEach(function(t){
+      if(t.isCredit) return;
+      if(!globalTypeFilter.includes(t.txType)) return;
+      m[t.description]=(m[t.description]||0)+t.amount;
+    });
+    return Object.entries(m).sort(function(a,b){return b[1]-a[1];}).slice(0,3);
+  },[thisMoTxs, globalTypeFilter]);
+
+  var top12Vendors = useMemo(function(){
+    var cutoff = new Date(now.getFullYear(), now.getMonth()-11, 1);
+    var cutoffYM = cutoff.getFullYear()+"-"+_p2(cutoff.getMonth()+1);
+    var m={};
+    transactions.forEach(function(t){
+      if(t.isCredit) return;
+      if(!globalTypeFilter.includes(t.txType)) return;
+      if(!t.date||t.date.slice(0,7)<cutoffYM) return;
+      m[t.description]=(m[t.description]||0)+t.amount;
+    });
+    var sorted = Object.entries(m).sort(function(a,b){return b[1]-a[1];});
+    return {top:sorted.slice(0,5), total:sorted.length};
+  },[transactions, globalTypeFilter]);
+
+  // Forecast: simple 3-month mini-projection from current cash + accounts
+  var miniProjection = useMemo(function(){
+    var accounts = (financials&&financials.accounts)||[];
+    var cash     = (financials&&financials.cash)||[];
+    var start = accounts.reduce(function(s,a){return s+(a.balance||0);},0)
+              + cash.reduce(function(s,c){return s+(c.amount||0);},0);
+    // Rough monthly net from forecastSpendRows + events
+    var rows   = (financials&&financials.forecastSpendRows)||[];
+    var events = (financials&&financials.forecastEvents)||[];
+    var months = [];
+    for(var i=0;i<3;i++){
+      var d = new Date(now.getFullYear(), now.getMonth()+i, 1);
+      var ym = d.getFullYear()+"-"+_p2(d.getMonth()+1);
+      var mo3 = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][d.getMonth()];
+      // sum outgoings for this month
+      var out = rows.reduce(function(s,r){
+        if(ym<r.fromMonth||ym>r.toMonth) return s;
+        var bcat=budgets&&budgets[r.cat];
+        var amt=r.useBudget?(bcat&&bcat.monthly||0):Number(r.amount)||0;
+        return s+amt;
+      },0);
+      // sum events for this month
+      var evtNet = events.reduce(function(s,e){
+        if(!e.months||!e.months.includes(ym)) return s;
+        return s+(e.isInc?e.amount:-e.amount);
+      },0);
+      months.push({ym:ym,label:mo3,closing:start-out+evtNet,out:out,evtNet:evtNet});
+      start = start-out+evtNet;
+    }
+    return months;
+  },[financials, budgets, now]);
+
+  function fmtK(n){
+    var rate = (_globalDispRates&&Object.values(_globalDispRates)[0])||1;
+    var sym  = (_globalDispRates&&Object.keys(_globalDispRates)[0])||displayCurrency||"AED";
+    var v = n * rate;
+    var abs = Math.abs(v);
+    var str;
+    if(abs>=1000000) str = (v/1000000).toFixed(1)+"M";
+    else if(abs>=1000) str = (v/1000).toFixed(0)+"K";
+    else str = String(Math.round(v));
+    return sym+" "+str;
+  }
+  function fmtSigned(n){
+    var rate = (_globalDispRates&&Object.values(_globalDispRates)[0])||1;
+    var sym  = (_globalDispRates&&Object.keys(_globalDispRates)[0])||displayCurrency||"AED";
+    var v = n * rate;
+    var abs = Math.abs(v);
+    var str;
+    if(abs>=1000000) str = (Math.abs(v)/1000000).toFixed(1)+"M";
+    else if(abs>=1000) str = (Math.abs(v)/1000).toFixed(0)+"K";
+    else str = String(Math.round(Math.abs(v)));
+    return (v>=0?"+":"-")+sym+" "+str;
+  }
+
+  function navTo(t){
+    setTab(t);
+    setFlippedCard(null);
+    setFlippedAction(null);
+  }
+
+  function flipCard(n){ setFlippedCard(flippedCard===n?null:n); setFlippedAction(null); }
+  function flipAction(k){ setFlippedAction(flippedAction===k?null:k); setFlippedCard(null); }
+
+  // ── Shared style helpers ──
+  var FACE_STYLE = {position:"absolute",inset:0,borderRadius:22,backface_visibility:"hidden",WebkitBackfaceVisibility:"hidden",overflow:"hidden"};
+  var BACK_BASE  = {position:"absolute",inset:0,borderRadius:22,backfaceVisibility:"hidden",WebkitBackfaceVisibility:"hidden",overflow:"hidden",transform:"rotateY(180deg)"};
+
+  function Scene(props){
+    // idx: card number 1-8. Children: [frontEl, backEl]
+    var flipped = flippedCard===props.idx;
+    return (
+      <div onClick={function(e){if(e.target.closest&&e.target.closest("button"))return; flipCard(props.idx);}}
+        style={{perspective:"1000px",height:props.height||178,cursor:"pointer",borderRadius:22}}>
+        <div style={{position:"relative",width:"100%",height:"100%",
+          transformStyle:"preserve-3d",WebkitTransformStyle:"preserve-3d",
+          transition:"transform 0.58s cubic-bezier(0.38,0.15,0.18,1.02)",
+          WebkitTransition:"-webkit-transform 0.58s cubic-bezier(0.38,0.15,0.18,1.02)",
+          borderRadius:22,
+          transform:flipped?"rotateY(180deg)":"rotateY(0deg)",
+          WebkitTransform:flipped?"rotateY(180deg)":"rotateY(0deg)"}}>
+          {props.children}
+        </div>
+      </div>
+    );
+  }
+
+  function CardFront(props){
+    return (
+      <div style={{position:"absolute",inset:0,borderRadius:22,
+        backfaceVisibility:"hidden",WebkitBackfaceVisibility:"hidden",
+        transform:"rotateY(0deg)",WebkitTransform:"rotateY(0deg)",
+        background:props.bg}}>
+        {props.texture&&props.texture}
+        {/* big emoji glyph */}
+        <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",paddingBottom:48,fontSize:props.glyphSize||76,lineHeight:1,filter:"drop-shadow(0 4px 14px rgba(0,0,0,0.22))",zIndex:1}}>
+          {props.glyph}
+        </div>
+        {/* top-left label */}
+        <div style={{position:"absolute",top:11,left:12,zIndex:2,fontSize:9,fontWeight:700,color:"rgba(255,255,255,0.42)",letterSpacing:"0.09em",textTransform:"uppercase"}}>{props.section}</div>
+        {/* bottom gradient strip */}
+        <div style={{position:"absolute",bottom:0,left:0,right:0,padding:"9px 13px 12px",background:"linear-gradient(to top,rgba(0,0,0,0.52) 0%,transparent 100%)",zIndex:2}}>
+          <div style={{fontSize:12.5,fontWeight:800,color:"#fff",letterSpacing:"-0.2px",lineHeight:1.15}}>{props.name}</div>
+          <div style={{fontSize:9,color:"rgba(255,255,255,0.6)",fontWeight:500,marginTop:2,lineHeight:1.3}}>{props.desc}</div>
+        </div>
+      </div>
+    );
+  }
+
+  function CardBack(props){
+    return (
+      <div style={{position:"absolute",inset:0,borderRadius:22,
+        backfaceVisibility:"hidden",WebkitBackfaceVisibility:"hidden",
+        transform:"rotateY(180deg)",WebkitTransform:"rotateY(180deg)",
+        background:"#1a1f2e"}}>
+        <div style={{height:"100%",display:"flex",flexDirection:"column",padding:13}}>
+          {props.children}
+        </div>
+      </div>
+    );
+  }
+
+  function BackHd({children}){ return <div style={{fontSize:9,fontWeight:700,color:"rgba(255,255,255,0.30)",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:8}}>{children}</div>; }
+  function StatRow({label,val,col}){ return <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"3.5px 0",borderBottom:"1px solid rgba(255,255,255,0.06)"}}><span style={{fontSize:10,color:"rgba(255,255,255,0.45)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:"60%"}}>{label}</span><span style={{fontFamily:"monospace",fontSize:10.5,fontWeight:700,color:col||"#fff"}}>{val}</span></div>; }
+  function BarRow({label,pct,col,val}){ return <div style={{display:"flex",alignItems:"center",gap:5,padding:"2.5px 0"}}><span style={{fontSize:9,color:"rgba(255,255,255,0.45)",width:54,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flexShrink:0}}>{label}</span><div style={{flex:1,height:5,background:"rgba(255,255,255,0.09)",borderRadius:3,overflow:"hidden"}}><div style={{height:"100%",borderRadius:3,background:col,width:pct+"%"}}></div></div><span style={{fontFamily:"monospace",fontSize:9,minWidth:36,textAlign:"right",flexShrink:0,color:col}}>{val}</span></div>; }
+  function GoBtn({onClick,children}){
+    function handle(e){ e.stopPropagation(); e.preventDefault(); onClick(); }
+    return <button onClick={handle} onTouchEnd={handle} style={{display:"block",width:"100%",marginTop:"auto",padding:"6px 0",background:"rgba(255,255,255,0.10)",border:"1px solid rgba(255,255,255,0.18)",borderRadius:10,color:"#fff",fontSize:10.5,fontWeight:700,textAlign:"center",cursor:"pointer",fontFamily:"inherit"}}>{children}</button>;
+  }
+  function TxSect({children}){ return <div style={{fontSize:8,fontWeight:700,letterSpacing:"0.09em",textTransform:"uppercase",color:"rgba(255,255,255,0.28)",margin:"3px 0 2px"}}>{children}</div>; }
+
+  var maxCat = catSpend.length>0 ? catSpend[0][1] : 1;
+  var maxVen = top12Vendors.top.length>0 ? top12Vendors.top[0][1] : 1;
+
+  // ── RENDER ──
+  return (
+    <div style={{paddingBottom:32,maxWidth:isWide?900:520,margin:"0 auto"}}>
+
+      <div style={{textAlign:"center",fontSize:10,color:"#aab0bb",margin:"10px 0 11px",letterSpacing:"0.04em"}}>Tap any card to flip · tap again to close</div>
+
+      {/* ── 8-card grid ── */}
+      <div style={{display:"grid",gridTemplateColumns:isWide?"1fr 1fr 1fr 1fr":"1fr 1fr",gap:11,padding:"0 16px",marginBottom:14}}>
+
+        {/* 1. MONTHLY SUMMARY */}
+        {Scene({idx:1,children:[
+          CardFront({bg:"linear-gradient(140deg,#1a6a3a 0%,#2a9d6f 100%)",section:"Summary",
+            glyph:"🏛️",
+            name:"Monthly Summary",desc:"Income vs expenses · annual view · net trend"}),
+          CardBack({children:[
+            BackHd({children:"This month"}),
+            StatRow({label:"Income",   val:fmtK(summaryThis.income),  col:"#5de0a8"}),
+            StatRow({label:"Expenses", val:fmtK(summaryThis.expense), col:"#ff7070"}),
+            StatRow({label:"Net",      val:fmtSigned(summaryThis.net), col:summaryThis.net>=0?"#5de0a8":"#ff7070"}),
+            StatRow({label:"YTD net",  val:fmtSigned(ytdNet), col:ytdNet>=0?"#5de0a8":"#ff7070"}),
+            GoBtn({onClick:function(){navTo("summary");}, children:"Go to Summary →"})
+          ]})
+        ]})}
+
+        {/* 2. FORECAST CASHFLOW */}
+        {Scene({idx:2,children:[
+          CardFront({bg:"linear-gradient(140deg,#1e3a5f 0%,#2a5298 100%)",section:"Forecast",glyph:"📈",name:"Forecast Cashflow",desc:"36-month projection · events · CC payments"}),
+          CardBack({children:[
+            BackHd({children:"Closing balance · next 3 months"}),
+            <div style={{display:"flex",gap:6,flex:1,alignItems:"stretch",marginBottom:6}}>
+              {miniProjection.map(function(m){
+                return <div key={m.ym} style={{flex:1,background:"rgba(255,255,255,0.08)",borderRadius:10,padding:"8px 4px",textAlign:"center",display:"flex",flexDirection:"column",justifyContent:"center",gap:4}}>
+                  <div style={{fontSize:8,color:"rgba(255,255,255,0.45)",fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase"}}>{m.label}</div>
+                  <div style={{fontSize:13,fontWeight:800,color:"#fff",fontFamily:"monospace",letterSpacing:"-0.3px"}}>{fmtK(m.closing)}</div>
+                </div>;
+              })}
+            </div>,
+            GoBtn({onClick:function(){navTo("forecast");}, children:"Go to Forecast →"})
+          ]})
+        ]})}
+
+        {/* 3. INCOME & SPEND ANALYSIS */}
+        {Scene({idx:3,children:[
+          CardFront({bg:"linear-gradient(140deg,#7a1a5e 0%,#b02880 100%)",section:"Analysis",glyph:"🏷️",name:"Income & Spend Analysis",desc:"Categories · subcategories · trends"}),
+          CardBack({children:[
+            BackHd({children:"This month"}),
+            TxSect({children:"Top 3 spend categories"}),
+            catSpend.slice(0,3).map(function(e,i){
+              return BarRow({key:e[0], label:e[0], pct:Math.round(e[1]/maxCat*100), col:i===0?"#ff7070":i===1?"#ff7070":"#f5c06a", val:fmtK(e[1])});
+            }),
+            TxSect({children:"Top income category"}),
+            incomeBycat.slice(0,1).map(function(e){ return BarRow({key:e[0], label:e[0], pct:100, col:"#5de0a8", val:fmtK(e[1])}); }),
+            <div style={{display:"flex",gap:5,marginTop:"auto",paddingTop:5}}>
+              {GoBtn({onClick:function(){navTo("categories");}, children:"Categories →"})}
+              {GoBtn({onClick:function(){navTo("subcategories");}, children:"Subcategories →"})}
+            </div>
+          ]})
+        ]})}
+
+        {/* 4. TRANSACTION ANALYSIS */}
+        {Scene({idx:4,children:[
+          CardFront({
+            bg:"linear-gradient(140deg,#2a1a3a 0%,#5a3070 100%)",
+            section:"Transactions",
+            glyph:"💳",
+            glyphSize:68,
+            name:"Transaction Analysis",
+            desc:"Highest value spend & income this month",
+            texture:<div style={{position:"absolute",inset:0,overflow:"hidden",pointerEvents:"none",zIndex:1,padding:"10px 10px 52px"}}>
+              {[...topSpend,...topIncome].slice(0,5).map(function(t,i){
+                return <div key={i} style={{fontSize:8.5,fontWeight:700,color:"rgba(255,255,255,"+(0.13-i*0.02)+")",whiteSpace:"nowrap",marginBottom:5}}>
+                  {t.date} · {(t.description||"").slice(0,20)} · {t.isCredit?"+":"-"}{fmtK(t.amount)}
+                </div>;
+              })}
+            </div>
+          }),
+          CardBack({children:[
+            <div style={{display:"flex",flex:1,gap:0,flexDirection:"column",height:"100%"}}>
+              <div style={{display:"flex",gap:0,flex:1}}>
+                <div style={{flex:1,display:"flex",flexDirection:"column"}}>
+                  <div style={{fontSize:8.5,fontWeight:700,letterSpacing:"0.09em",textTransform:"uppercase",marginBottom:5,color:"rgba(255,112,112,0.65)"}}>Top spend</div>
+                  {topSpend.map(function(t,i){ return <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",padding:"2.5px 0",borderBottom:"1px solid rgba(255,255,255,0.05)"}}><span style={{fontSize:9,color:"rgba(255,255,255,0.5)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:"58%"}}>{(t.description||"").slice(0,15)}</span><span style={{fontFamily:"monospace",fontSize:9.5,fontWeight:700,color:"#ff7070"}}>{fmtK(t.amount)}</span></div>; })}
+                  {topSpend.length===0&&<div style={{fontSize:9,color:"rgba(255,255,255,0.3)"}}>No data</div>}
+                </div>
+                <div style={{width:1,background:"rgba(255,255,255,0.07)",flexShrink:0,margin:"0 6px"}}></div>
+                <div style={{flex:1,display:"flex",flexDirection:"column"}}>
+                  <div style={{fontSize:8.5,fontWeight:700,letterSpacing:"0.09em",textTransform:"uppercase",marginBottom:5,color:"rgba(93,224,168,0.65)"}}>Top income</div>
+                  {topIncome.map(function(t,i){ return <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",padding:"2.5px 0",borderBottom:"1px solid rgba(255,255,255,0.05)"}}><span style={{fontSize:9,color:"rgba(255,255,255,0.5)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:"58%"}}>{(t.description||"").slice(0,15)}</span><span style={{fontFamily:"monospace",fontSize:9.5,fontWeight:700,color:"#5de0a8"}}>{fmtK(t.amount)}</span></div>; })}
+                  {topIncome.length===0&&<div style={{fontSize:9,color:"rgba(255,255,255,0.3)"}}>No data</div>}
+                </div>
+              </div>
+              {GoBtn({onClick:function(){navTo("transactions");}, children:"Go to Transactions →"})}
+            </div>
+          ]})
+        ]})}
+
+        {/* 5. BUDGET STATUS */}
+        {Scene({idx:5,children:[
+          CardFront({bg:"linear-gradient(140deg,#8a5200 0%,#c8860a 100%)",section:"Budget",glyph:"🎯",name:"Budget Status",desc:"Monthly limits · category targets · tracking"}),
+          CardBack({children:[
+            BackHd({children:"Budget vs actual"}),
+            budgetStatus.all.slice(0,5).map(function(b){
+              var col=b.pct>100?"#ff7070":b.pct>90?"#f5c06a":"#5de0a8";
+              return StatRow({key:b.cat, label:b.cat, val:b.pct+"%", col:col});
+            }),
+            budgetStatus.all.length===0&&<div style={{fontSize:10,color:"rgba(255,255,255,0.3)",paddingTop:4}}>No budgets set</div>,
+            GoBtn({onClick:function(){navTo("budget");}, children:"Go to Budget →"})
+          ]})
+        ]})}
+
+        {/* 6. SPEND ALERT */}
+        {Scene({idx:6,children:[
+          CardFront({bg:"linear-gradient(140deg,#0a5e45 0%,#0f8f68 100%)",section:"Spend Alert",glyph:"🔔",name:"Spend Alert",desc:"Spike detection · over-limit warnings"}),
+          CardBack({children:[
+            BackHd({children:"Active alerts"}),
+            spendAlerts.slice(0,4).map(function(a){
+              return StatRow({key:a.cat, label:a.cat, val:"+"+a.pct+"%", col:"#ff7070"});
+            }),
+            spendAlerts.length===0&&<div style={{fontSize:10,color:"rgba(255,255,255,0.4)",paddingTop:4}}>✓ No spikes detected</div>,
+            StatRow({label:"Categories checked", val:Object.keys(budgets||{}).length||"—", col:"#fff"}),
+            GoBtn({onClick:function(){navTo("watchout");}, children:"Go to Spend Alert →"})
+          ]})
+        ]})}
+
+        {/* 7. VENDOR SPEND ANALYSIS */}
+        {Scene({idx:7,children:[
+          CardFront({bg:"linear-gradient(140deg,#1a3a5a 0%,#1e5f8a 100%)",section:"Vendors",glyph:"🏪",name:"Vendor Spend Analysis",desc:"Top merchants · where money goes"}),
+          CardBack({children:[
+            BackHd({children:"Top spend vendors · last 12 months"}),
+            top12Vendors.top.map(function(e,i){
+              return BarRow({key:e[0], label:e[0], pct:Math.round(e[1]/maxVen*100), col:i===0?"#ff7070":"#f5c06a", val:fmtK(e[1])});
+            }),
+            top12Vendors.top.length===0&&<div style={{fontSize:10,color:"rgba(255,255,255,0.3)",paddingTop:4}}>No data</div>,
+            <div style={{padding:"4px 0 0",borderTop:"1px solid rgba(255,255,255,0.06)",marginTop:6}}>
+              {StatRow({label:"Total vendors", val:top12Vendors.total, col:"#fff"})}
+            </div>,
+            GoBtn({onClick:function(){navTo("vendors");}, children:"Go to Vendors →"})
+          ]})
+        ]})}
+
+        {/* 8. FINANCIAL POSITION — locked */}
+        {Scene({idx:8,children:[
+          CardFront({bg:"linear-gradient(140deg,#3d2d8a 0%,#5a46c0 100%)",section:"Position",glyph:"💼",name:"Financial Position",desc:"Net worth · assets · liabilities · investments"}),
+          CardBack({children:[
+            BackHd({children:"Net worth"}),
+            <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",flex:1,gap:7}}>
+              <div style={{fontSize:30}}>🔒</div>
+              <div style={{fontSize:9.5,color:"rgba(255,255,255,0.38)",textAlign:"center",fontWeight:500,lineHeight:1.4}}>Biometric authentication<br/>required to view your<br/>position data</div>
+            </div>,
+            <div style={{marginBottom:7}}>
+              {["Net worth","Cash","Investments"].map(function(l){ return <div key={l} style={{display:"flex",justifyContent:"space-between",padding:"3px 0",borderBottom:"1px solid rgba(255,255,255,0.06)"}}><span style={{fontSize:10,color:"rgba(255,255,255,0.28)"}}>{l}</span><span style={{fontFamily:"monospace",fontSize:10,color:"rgba(255,255,255,0.11)",letterSpacing:"0.06em"}}>████████</span></div>; })}
+            </div>,
+            GoBtn({onClick:function(){ setFlippedCard(null); setPositionUnlocked(false); navTo("position"); }, children:"🔒 Authenticate to view →"})
+          ]})
+        ]})}
+
+      </div>{/* end grid */}
+
+      {/* ── 3 Action rows — each flips ── */}
+      <div style={{display:"flex",flexDirection:isWide?"row":"column",gap:9,padding:"0 16px",marginBottom:32}}>
+
+        {/* INPUT DATA */}
+        {(function(){
+          var flipped = flippedAction==="input";
+          return (
+            <div onClick={function(e){if(e.target.closest&&e.target.closest("button"))return; flipAction("input");}}
+              style={{perspective:"900px",height:64,cursor:"pointer",borderRadius:16,flex:1}}>
+              <div style={{position:"relative",width:"100%",height:"100%",
+                transformStyle:"preserve-3d",WebkitTransformStyle:"preserve-3d",
+                transition:"transform 0.52s cubic-bezier(0.38,0.15,0.18,1.02)",
+                WebkitTransition:"-webkit-transform 0.52s cubic-bezier(0.38,0.15,0.18,1.02)",
+                borderRadius:16,
+                transform:flipped?"rotateY(180deg)":"rotateY(0deg)",
+                WebkitTransform:flipped?"rotateY(180deg)":"rotateY(0deg)"}}>
+                {/* Front */}
+                <div style={{position:"absolute",inset:0,borderRadius:16,backfaceVisibility:"hidden",WebkitBackfaceVisibility:"hidden",background:"#fff",border:"1px solid "+C.border,display:"flex",alignItems:"center",gap:13,padding:"0 16px"}}>
+                  <div style={{width:38,height:38,borderRadius:10,background:"rgba(42,157,111,0.12)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:19,flexShrink:0}}>📥</div>
+                  <div style={{flex:1}}>
+                    <div style={{fontSize:13,fontWeight:700,color:C.text,lineHeight:1.2}}>Input Data</div>
+                    <div style={{fontSize:10,color:C.dim,marginTop:1,fontWeight:500}}>Scan/Import · Add transaction · Update position</div>
+                  </div>
+                  <div style={{fontSize:20,color:C.border}}>›</div>
+                </div>
+                {/* Back — 3 sub-tiles */}
+                <div style={{position:"absolute",inset:0,borderRadius:16,backfaceVisibility:"hidden",WebkitBackfaceVisibility:"hidden",transform:"rotateY(180deg)",WebkitTransform:"rotateY(180deg)",background:"#1a1f2e",display:"flex",alignItems:"center",gap:7,padding:"0 12px"}}>
+                  {[
+                    ["📸","Scan /\nImport", function(){ setFlippedAction(null); setModal("import"); }],
+                    ["➕","Add\nTransaction", function(){ setFlippedAction(null); setModal("manual"); }],
+                    ["💼","Update\nPosition", function(){ setFlippedAction(null); setManageInitSection("financial"); setModal("manage"); }],
+                  ].map(function(item,i){
+                    return <button key={i} onClick={function(e){e.stopPropagation();item[2]();}}
+                      style={{flex:1,height:46,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.11)",borderRadius:11,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:2,cursor:"pointer",fontFamily:"inherit",padding:"0 2px"}}>
+                      <div style={{fontSize:17,lineHeight:1}}>{item[0]}</div>
+                      <div style={{fontSize:8,fontWeight:700,color:"rgba(255,255,255,0.72)",textAlign:"center",lineHeight:1.2,whiteSpace:"pre-line"}}>{item[1]}</div>
+                    </button>;
+                  })}
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* MANAGE DATA */}
+        {(function(){
+          var flipped = flippedAction==="manage";
+          return (
+            <div onClick={function(e){if(e.target.closest&&e.target.closest("button"))return; flipAction("manage");}}
+              style={{perspective:"900px",height:64,cursor:"pointer",borderRadius:16,flex:1}}>
+              <div style={{position:"relative",width:"100%",height:"100%",
+                transformStyle:"preserve-3d",WebkitTransformStyle:"preserve-3d",
+                transition:"transform 0.52s cubic-bezier(0.38,0.15,0.18,1.02)",
+                WebkitTransition:"-webkit-transform 0.52s cubic-bezier(0.38,0.15,0.18,1.02)",
+                borderRadius:16,
+                transform:flipped?"rotateY(180deg)":"rotateY(0deg)",
+                WebkitTransform:flipped?"rotateY(180deg)":"rotateY(0deg)"}}>
+                <div style={{position:"absolute",inset:0,borderRadius:16,backfaceVisibility:"hidden",WebkitBackfaceVisibility:"hidden",background:"#fff",border:"1px solid "+C.border,display:"flex",alignItems:"center",gap:13,padding:"0 16px"}}>
+                  <div style={{width:38,height:38,borderRadius:10,background:"rgba(42,82,152,0.11)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:19,flexShrink:0}}>⚙️</div>
+                  <div style={{flex:1}}>
+                    <div style={{fontSize:13,fontWeight:700,color:C.text,lineHeight:1.2}}>Manage Data</div>
+                    <div style={{fontSize:10,color:C.dim,marginTop:1,fontWeight:500}}>Accounts · categories · vendors · forecast</div>
+                  </div>
+                  <div style={{fontSize:20,color:C.border}}>›</div>
+                </div>
+                <div style={{position:"absolute",inset:0,borderRadius:16,backfaceVisibility:"hidden",WebkitBackfaceVisibility:"hidden",transform:"rotateY(180deg)",WebkitTransform:"rotateY(180deg)",background:"#1a1f2e",display:"flex",alignItems:"center",gap:7,padding:"0 12px"}}>
+                  {[
+                    ["🏦","Accounts",  function(){ setFlippedAction(null); setManageInitSection("financial"); setModal("manage"); }],
+                    ["🏷️","Categories",function(){ setFlippedAction(null); setManageInitSection("categories"); setModal("manage"); }],
+                    ["🏪","Vendors",   function(){ setFlippedAction(null); setManageInitSection("vendors"); setModal("manage"); }],
+                    ["📈","Forecast",  function(){ setFlippedAction(null); setManageInitSection("forecast"); setModal("manage"); }],
+                  ].map(function(item,i){
+                    return <button key={i} onClick={function(e){e.stopPropagation();item[2]();}}
+                      style={{flex:1,height:46,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.11)",borderRadius:11,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:2,cursor:"pointer",fontFamily:"inherit",padding:"0 2px"}}>
+                      <div style={{fontSize:17,lineHeight:1}}>{item[0]}</div>
+                      <div style={{fontSize:8,fontWeight:700,color:"rgba(255,255,255,0.72)",textAlign:"center",lineHeight:1.2}}>{item[1]}</div>
+                    </button>;
+                  })}
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* TOOLS */}
+        {(function(){
+          var flipped = flippedAction==="tools";
+          return (
+            <div onClick={function(e){if(e.target.closest&&e.target.closest("button"))return; flipAction("tools");}}
+              style={{perspective:"900px",height:64,cursor:"pointer",borderRadius:16,flex:1}}>
+              <div style={{position:"relative",width:"100%",height:"100%",
+                transformStyle:"preserve-3d",WebkitTransformStyle:"preserve-3d",
+                transition:"transform 0.52s cubic-bezier(0.38,0.15,0.18,1.02)",
+                WebkitTransition:"-webkit-transform 0.52s cubic-bezier(0.38,0.15,0.18,1.02)",
+                borderRadius:16,
+                transform:flipped?"rotateY(180deg)":"rotateY(0deg)",
+                WebkitTransform:flipped?"rotateY(180deg)":"rotateY(0deg)"}}>
+                <div style={{position:"absolute",inset:0,borderRadius:16,backfaceVisibility:"hidden",WebkitBackfaceVisibility:"hidden",background:"#fff",border:"1px solid "+C.border,display:"flex",alignItems:"center",gap:13,padding:"0 16px"}}>
+                  <div style={{width:38,height:38,borderRadius:10,background:"rgba(74,85,104,0.09)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:19,flexShrink:0}}>🛠️</div>
+                  <div style={{flex:1}}>
+                    <div style={{fontSize:13,fontWeight:700,color:C.text,lineHeight:1.2}}>Tools</div>
+                    <div style={{fontSize:10,color:C.dim,marginTop:1,fontWeight:500}}>Backup · Export to Excel · Gemini Usage</div>
+                  </div>
+                  <div style={{fontSize:20,color:C.border}}>›</div>
+                </div>
+                <div style={{position:"absolute",inset:0,borderRadius:16,backfaceVisibility:"hidden",WebkitBackfaceVisibility:"hidden",transform:"rotateY(180deg)",WebkitTransform:"rotateY(180deg)",background:"#1a1f2e",display:"flex",alignItems:"center",gap:7,padding:"0 12px"}}>
+                  {[
+                    ["💾","Backup /\nRestore",  function(){ setFlippedAction(null); setModal("settings"); }],
+                    ["📊","Export\nExcel",      function(){ setFlippedAction(null); setModal("export"); }],
+                    ["🤖","Gemini\nUsage",      function(){ setFlippedAction(null); setManageInitSection("gemini"); setModal("manage"); }],
+                  ].map(function(item,i){
+                    return <button key={i} onClick={function(e){e.stopPropagation();item[2]();}}
+                      style={{flex:1,height:46,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.11)",borderRadius:11,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:2,cursor:"pointer",fontFamily:"inherit",padding:"0 2px"}}>
+                      <div style={{fontSize:17,lineHeight:1}}>{item[0]}</div>
+                      <div style={{fontSize:8,fontWeight:700,color:"rgba(255,255,255,0.72)",textAlign:"center",lineHeight:1.2,whiteSpace:"pre-line"}}>{item[1]}</div>
+                    </button>;
+                  })}
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+
+      </div>
+    </div>
+  );
+}
+
 function SummaryTab({transactions, taxonomy, displayCurrency, globalTypeFilter, financials}) {
   const G = "#1a7a3a";
   const R = "#d94040";
@@ -4967,13 +5547,7 @@ function SummaryTab({transactions, taxonomy, displayCurrency, globalTypeFilter, 
   // Get the actual transactions for a drill selection
   function getTxsForDrill(sliceTxs, type) {
     if(type==="income") return sliceTxs.filter(function(t){ return t.isCredit && t.category==="Income"; });
-    if(type==="expense") return sliceTxs.filter(function(t){
-      // Include debits that pass the type filter
-      if(!t.isCredit) return globalTypeFilter.includes(t.txType);
-      // Also include non-Income credits (refunds/cashback) — these reduce the expense total in calcSlice
-      var et=(t.txType==="credit"||!t.txType)?"standard":t.txType;
-      return t.category!=="Income" && globalTypeFilter.includes(et);
-    });
+    if(type==="expense") return sliceTxs.filter(function(t){ return !t.isCredit && globalTypeFilter.includes(t.txType); });
     // net = all (income + expenses)
     return sliceTxs.filter(function(t){
       if(t.isCredit) { var et=(t.txType==="credit"||!t.txType)?"standard":t.txType; return globalTypeFilter.includes(et); }
@@ -5034,11 +5608,7 @@ function SummaryTab({transactions, taxonomy, displayCurrency, globalTypeFilter, 
       });
     }
 
-    // Mirror calcSlice logic: debits add to total, non-Income credits subtract (refunds/cashback)
-    var total = sorted.reduce(function(s,t){
-      if(t.isCredit) return t.category==="Income" ? s+t.amount : s-t.amount;
-      return s+t.amount;
-    },0);
+    var total = sorted.reduce(function(s,t){return s+t.amount;},0);
 
     return React.createElement("div", {style:{marginTop:0,borderTop:"2px solid "+(type==="income"?G:type==="expense"?R:"#4a62d8"),
       background:"rgba(0,0,0,0.02)",padding:"12px 16px",borderRadius:"0 0 14px 14px"}},
@@ -7142,7 +7712,7 @@ function App() {
   const [vendorMap,  setVendorMapRaw] = useState({});
   const [rawTxs,     setRawTxsRaw]    = useState(RAW_SEED);
   const [period,     setPeriod]       = useState({preset:"all",from:"",to:""});
-  const [tab,        setTab]          = useState("summary");
+  const [tab,        setTab]          = useState("home");
   const [positionUnlocked, setPositionUnlocked] = useState(false); // re-auth gate for Position tab
   const [txFilter,   setTxFilter]     = useState("all");
   const [txViewMode,  setTxViewMode]   = useState("all"); // "all"|"costs"|"credits"
@@ -7189,6 +7759,7 @@ function App() {
   const [displayCurrency, setDisplayCurrency] = useState("AED"); // display currency
   const [displayRates, setDisplayRates] = useState(null); // {GBP: 0.21, ...} rates from AED
   const [modal,      setModal]        = useState(null);
+  const [manageInitSection, setManageInitSection] = useState("categories");
   const [remapTx,    setRemapTx]      = useState(null);
   const [loaded,     setLoaded]       = useState(false);
   const [drillCat,   setDrillCat]     = useState(null);
@@ -7724,13 +8295,13 @@ function App() {
     return sorted;
   },[mTxs,txFilter,txSort,txSearch,txAccFilter===null?"all":JSON.stringify([...txAccFilter].sort()),txCatFilter===null?"all":JSON.stringify([...txCatFilter].sort()),uncatOnly,txSubFilter,dupesMode,selTxs]);
 
-  const TABS=[["summary","📋"],["position","💼"],["forecast","📈"],["overview","📊"],["budget","🎯"],["watchout","🔔"],["categories","🏷️"],["subcategories","🔖"],["transactions","💳"],["vendors","🏪"]];
-  const TAB_LABELS={summary:"Summary",position:"Fin. Position",forecast:"Forecast Cashflow",overview:"Overview",budget:"Budget",watchout:"Spend Alert",categories:"Categories",subcategories:"Subcategories",transactions:"Transactions",vendors:"Vendors"};
+  const TABS=[["home","🏠"],["summary","📋"],["position","💼"],["forecast","📈"],["overview","📊"],["budget","🎯"],["watchout","🔔"],["categories","🏷️"],["subcategories","🔖"],["transactions","💳"],["vendors","🏪"]];
+  const TAB_LABELS={home:"Home",summary:"Summary",position:"Fin. Position",forecast:"Forecast Cashflow",overview:"Overview",budget:"Budget",watchout:"Spend Alert",categories:"Categories",subcategories:"Subcategories",transactions:"Transactions",vendors:"Vendors"};
 
   // Show loading while Firebase checks auth
   if(fbUser===undefined) return (
     <div style={{minHeight:"100vh",background:"#ecf1eb",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:12}}>
-      <img src="logo.png" alt="Home Financials" style={{maxWidth:280,width:"80%",height:"auto"}}/>
+      <img src="Home_financials_LOGO_White_Back.png" alt="Home Financials" style={{maxWidth:280,width:"80%",height:"auto"}}/>
       <div style={{fontSize:13,color:"#7a8699",marginTop:8}}>Loading…</div>
     </div>
   );
@@ -7746,7 +8317,7 @@ function App() {
 
       {modal==="import"   && <ImportModal onImport={handleImport} onClose={()=>setModal(null)}/>}
       {modal==="manual"   && <ManualEntryModal onImport={handleImport} taxonomy={taxonomy} vendorMap={vendorMap} financials={financials} setFinancials={setFinancials} onClose={()=>setModal(null)}/>}
-      {modal==="manage"   && <ManageModal taxonomy={taxonomy} setTaxonomy={setTaxonomy} vendorMap={vendorMap} setVendorMap={setVendorMap} rawTxs={rawTxs} setRawTxs={setRawTxs} financials={financials} setFinancials={setFinancials} budgets={budgets} onClose={()=>setModal(null)}/>}
+      {modal==="manage"   && <ManageModal taxonomy={taxonomy} setTaxonomy={setTaxonomy} vendorMap={vendorMap} setVendorMap={setVendorMap} rawTxs={rawTxs} setRawTxs={setRawTxs} financials={financials} setFinancials={setFinancials} budgets={budgets} initialSection={manageInitSection} singleSection={manageInitSection!=="categories"} onClose={()=>setModal(null)}/>}
       {modal==="remap"    && remapTx && <RemapModal tx={remapTx} taxonomy={taxonomy} accounts={(financials&&financials.accounts)||[]} onSave={handleRemap} onClose={()=>{setModal(null);setRemapTx(null);}}/>}
       {modal==="export"   && <ExportModal transactions={transactions} taxonomy={taxonomy} currency={currency} onClose={()=>setModal(null)}/>}
       {modal==="settings" && <SettingsModal taxonomy={taxonomy} vendorMap={vendorMap} rawTxs={rawTxs} currency={currency} onImport={handleSettingsImport} onClose={()=>setModal(null)}/>}
@@ -7754,56 +8325,31 @@ function App() {
       {modal==="bulk"     && <BulkEditModal selected={selTxs} transactions={mTxs} taxonomy={taxonomy} accounts={(financials&&financials.accounts)||[]} onSave={handleBulkSave} onClose={()=>setModal(null)}/>}
       {drillOverlay       && <DrillTxOverlay txs={drillOverlay.txs} label={drillOverlay.label} currency={displayCurrency} dispRates={dispRates} taxonomy={taxonomy} onRemap={tx=>{setRemapTx(tx);setDrillOverlay(null);setModal("remap");}} onClose={()=>setDrillOverlay(null)}/>}
 
-      {/* Header */}
-      <div style={{padding:"10px 18px",display:"flex",alignItems:"center",justifyContent:"space-between",borderBottom:`1px solid ${C.border}`,position:"sticky",top:0,background:"rgba(243,246,240,0.97)",backdropFilter:"blur(12px)",boxShadow:"0 1px 8px rgba(0,0,0,0.10)",zIndex:100}}>
-        <div style={{display:"flex",alignItems:"center"}}>
-          <img src="logo.png" alt="Home Financials" style={{height:64,width:"auto",objectFit:"contain",filter:"saturate(1.4) brightness(0.92) contrast(1.05)"}}/>
+      {/* Header — always visible; logo click navigates home */}
+      <div style={{padding:"8px 12px",display:"flex",alignItems:"center",justifyContent:"space-between",borderBottom:`1px solid ${C.border}`,position:"sticky",top:0,background:isDark?"rgba(26,26,26,0.97)":"rgba(255,255,255,0.97)",backdropFilter:"blur(12px)",boxShadow:"0 1px 8px rgba(0,0,0,0.10)",zIndex:100}}>
+        <div style={{display:"flex",alignItems:"center",flexShrink:0}}>
+          <img src={isDark?"Home_financials_LOGO_Black_Back.png":"Home_financials_LOGO_White_Back.png"} alt="Home Financials" onClick={()=>setTab("home")} style={{height:48,width:"auto",objectFit:"contain",cursor:"pointer"}}/>
         </div>
-        <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
-          <select value={displayCurrency} onChange={e=>setDisplayCurrency(e.target.value)} style={{background:C.s2,border:`1px solid ${C.border}`,borderRadius:8,color:C.muted,padding:"6px 10px",fontSize:12,fontFamily:"monospace",outline:"none"}}>
+        <div style={{display:"flex",gap:6,alignItems:"center",flexShrink:0}}>
+          {/* Sync status — compact */}
+          <div style={{fontSize:10,fontWeight:600}}>
+            {fbSyncing&&<span style={{color:"#f59e0b"}}>⟳</span>}
+            {!fbSyncing&&fbError&&<span style={{color:C.danger}}>⚠️</span>}
+            {!fbSyncing&&!fbError&&fbLastSaved&&<span style={{color:C.accent,fontSize:11}}>✓</span>}
+          </div>
+          <select value={displayCurrency} onChange={e=>setDisplayCurrency(e.target.value)} style={{background:C.s2,border:`1px solid ${C.border}`,borderRadius:8,color:C.muted,padding:"5px 6px",fontSize:11,fontFamily:"monospace",outline:"none"}}>
             {["AED","GBP","USD","EUR","PKR"].map(c=><option key={c}>{c}</option>)}
           </select>
-          {/* Sync status */}
-          <div style={{fontSize:11,fontWeight:600,maxWidth:200}}>
-            {fbSyncing&&<span style={{color:"#f59e0b"}}>⟳ Saving…</span>}
-            {!fbSyncing&&fbError&&<span style={{color:C.danger,wordBreak:"break-all",display:"block"}}>⚠️ {fbError}</span>}
-            {!fbSyncing&&!fbError&&fbLastSaved&&<span style={{color:C.accent}}>✓ Saved</span>}
-          </div>
           {/* User avatar + sign out */}
-          <div style={{display:"flex",alignItems:"center",gap:6}}>
-            {fbUser?.photoURL&&<img src={fbUser.photoURL} style={{width:26,height:26,borderRadius:"50%",border:`2px solid ${C.accent}`}} alt=""/>}
-            <button onClick={signOut} style={btn(C.s2,C.muted,`1px solid ${C.border}`,11,"6px 8px")}>Sign Out</button>
-          </div>
-          {/* Tools dropdown */}
-          <div style={{position:"relative"}}>
-            <button onClick={()=>setShowTools(v=>!v)} style={btn(C.s2,C.muted,`1px solid ${C.border}`,12,"8px 12px")}>
-              🛠 Tools {showTools?"▲":"▾"}
-            </button>
-            {showTools&&(
-              <>
-                <div onClick={()=>setShowTools(false)} style={{position:"fixed",inset:0,zIndex:199}}/>
-                <div style={{position:"absolute",top:"110%",right:0,zIndex:200,background:C.surface,border:`1px solid ${C.border}`,borderRadius:14,boxShadow:"0 4px 20px rgba(0,0,0,0.12)",minWidth:200,overflow:"hidden"}}>
-                  {[
-                    ["⚙️","Config Data",()=>{setModal("manage");setShowTools(false);}],
-                    ["💾","Backup / Restore",()=>{setModal("settings");setShowTools(false);}],
-                    ["⬇️","Export Excel",()=>{setModal("export");setShowTools(false);}],
-                  ].map(([icon,label,action],i)=>(
-                    <div key={i} onClick={action} style={{padding:"12px 16px",display:"flex",alignItems:"center",gap:10,cursor:"pointer",borderBottom:`1px solid ${C.s2}`,fontSize:13,fontWeight:500,color:C.text}}>
-                      <span style={{fontSize:16}}>{icon}</span>{label}
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
-          </div>
-          <button onClick={()=>setModal("manual")} style={btn(C.accent,"#fff","none",12,"8px 12px")}>✏️ Input Data</button>
+          {fbUser?.photoURL&&<img src={fbUser.photoURL} style={{width:26,height:26,borderRadius:"50%",border:`2px solid ${C.accent}`,flexShrink:0}} alt=""/>}
+          <button onClick={signOut} style={btn(C.s2,C.muted,`1px solid ${C.border}`,11,"5px 8px")}>Sign Out</button>
         </div>
       </div>
 
-      <div style={{maxWidth:1100,margin:"0 auto",padding:"20px 16px"}}>
+      <div style={{maxWidth:tab==="home"?undefined:1100,margin:"0 auto",padding:tab==="home"?"0":"20px 16px"}}>
 
-        {/* Period picker — greyed out on Summary tab (it has its own built-in periods) */}
-        <div style={{marginBottom:16,opacity:tab==="summary"?0.35:1,pointerEvents:tab==="summary"?"none":"auto",transition:"opacity 0.2s"}}>
+        {/* Period picker — hidden on home tab, greyed out on summary tab */}
+        <div style={{marginBottom:16,display:tab==="home"?"none":"block",opacity:tab==="summary"?0.35:1,pointerEvents:tab==="summary"?"none":"auto",transition:"opacity 0.2s"}}>
           <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center",marginBottom:period.preset==="custom"?10:6}}>
             {[["all","All"],["this_year","This Year"],["last_year","Last Year"],["this_month","This Month"],["last_month","Last Month"],["custom","Custom"]].map(([v,l])=>(
               <button key={v} onClick={()=>{setPeriod(p=>({...p,preset:v}));setSelMonths([]);}} style={{padding:"6px 13px",borderRadius:20,border:`1px solid ${period.preset===v&&selMonths.length===0?C.accent:C.border}`,background:period.preset===v&&selMonths.length===0?C.accent:"transparent",color:period.preset===v&&selMonths.length===0?"#fff":C.muted,fontSize:12,cursor:"pointer",fontWeight:period.preset===v&&selMonths.length===0?700:500,outline:"none"}}>
@@ -7881,7 +8427,7 @@ function App() {
         )}
 
         {/* Avg/Month toggle — greyed out on Summary tab */}
-        <div style={{display:"flex",gap:6,alignItems:"center",marginBottom:10,opacity:tab==="summary"?0.35:1,pointerEvents:tab==="summary"?"none":"auto",transition:"opacity 0.2s"}}>
+        <div style={{display:tab==="home"?"none":"flex",gap:6,alignItems:"center",marginBottom:10,opacity:tab==="summary"?0.35:1,pointerEvents:tab==="summary"?"none":"auto",transition:"opacity 0.2s"}}>
           <button onClick={()=>setAvgMode(false)} style={{padding:"5px 14px",borderRadius:20,border:`1px solid ${!avgMode?C.accent:C.border}`,background:!avgMode?C.accent:"transparent",color:!avgMode?"#fff":C.muted,fontSize:12,fontWeight:!avgMode?700:500,cursor:"pointer",fontFamily:"inherit"}}>
             Total
           </button>
@@ -7892,7 +8438,7 @@ function App() {
         </div>
 
         {/* View mode: All / Costs / Credits */}
-        <div style={{display:"flex",gap:6,marginBottom:10,alignItems:"center",opacity:tab==="summary"?0.35:1,pointerEvents:tab==="summary"?"none":"auto",transition:"opacity 0.2s"}}>
+        <div style={{display:tab==="home"?"none":"flex",gap:6,marginBottom:10,alignItems:"center",opacity:tab==="summary"?0.35:1,pointerEvents:tab==="summary"?"none":"auto",transition:"opacity 0.2s"}}>
           {[["all","All"],["costs","💸 Costs"],["credits","💰 Credits"]].map(([v,l])=>(
             <button key={v} onClick={()=>{setTxViewMode(v);setTxFilter("all");}} style={{padding:"5px 14px",borderRadius:20,border:`1px solid ${txViewMode===v?C.accent:C.border}`,background:txViewMode===v?C.accent:"transparent",color:txViewMode===v?"#fff":C.muted,fontSize:12,fontWeight:txViewMode===v?700:500,cursor:"pointer",fontFamily:"inherit"}}>
               {l}
@@ -7900,7 +8446,7 @@ function App() {
           ))}
         </div>
         {/* Cost type filter */}
-        <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:12,alignItems:"center"}}>
+        <div style={{display:tab==="home"?"none":"flex",gap:6,flexWrap:"wrap",marginBottom:12,alignItems:"center"}}>
           {Object.entries(TYPE_META).map(([v,m])=>(
             <button key={v} onClick={()=>setGlobalTypeFilter(p=>p.includes(v)?p.length>1?p.filter(x=>x!==v):p:[...p,v])} style={{padding:"5px 13px",borderRadius:20,border:`1px solid ${globalTypeFilter.includes(v)?m.color:C.border}`,background:globalTypeFilter.includes(v)?m.color+"18":"transparent",color:globalTypeFilter.includes(v)?m.color:C.muted,fontSize:12,fontWeight:globalTypeFilter.includes(v)?700:500,cursor:"pointer",fontFamily:"inherit"}}>
               {globalTypeFilter.includes(v)?"●":"○"} {m.full}
@@ -7914,7 +8460,7 @@ function App() {
         </div>
 
         {/* Summary cards — greyed out on Summary tab (period-picker-dependent) */}
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:12,marginBottom:18,opacity:tab==="summary"?0.35:1,pointerEvents:tab==="summary"?"none":"auto",transition:"opacity 0.2s"}}>
+        <div style={{display:tab==="home"?"none":"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:12,marginBottom:18,opacity:tab==="summary"?0.35:1,pointerEvents:tab==="summary"?"none":"auto",transition:"opacity 0.2s"}}>
           {[
             {label:avgMode?"Avg Expenses/Mo":"Total Expenses",value:fmt(avgMode?total/mMonths:total,displayCurrency),sub:avgMode?`÷${mMonths} months`:selMonths.length>0?(selMonths.length===1?fmtM(selMonths[0]):selMonths.length+" months selected"):period.preset==="all"?"All time":period.preset==="this_year"?"This year":period.preset==="last_year"?"Last year":period.preset==="this_month"?"This month":period.preset==="last_month"?"Last month":pFrom===pTo?pFrom:pFrom.slice(0,7)===pTo.slice(0,7)?fmtM(pFrom.slice(0,7)):pFrom+" → "+pTo,accent:C.accent},
             {label:avgMode?"★ Fixed Avg/Mo":"★ Fixed Monthly",value:fmt(avgMode?(typeTots.standard/mMonths):typeTots.standard,displayCurrency,dispRates),sub:mTxs.filter(t=>!t.isCredit&&t.txType==="standard").length+" txns",accent:TYPE_META.standard.color},
@@ -7933,7 +8479,7 @@ function App() {
         </div>
 
         {/* Tabs */}
-        <div style={{background:C.surface,borderRadius:14,marginBottom:18,border:`1px solid ${C.border}`,boxShadow:"0 1px 3px rgba(0,0,0,0.05)",overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
+        <div style={{background:C.surface,borderRadius:14,marginBottom:18,border:`1px solid ${C.border}`,boxShadow:"0 1px 3px rgba(0,0,0,0.05)",overflowX:"auto",WebkitOverflowScrolling:"touch",display:tab==="home"?"none":"block"}}>
           <div style={{display:"flex",gap:2,padding:5,minWidth:"max-content"}}>
             {TABS.map(([t,icon])=>(
               <button key={t} onClick={()=>{if(tab==="position"&&t!=="position")setPositionUnlocked(false);setTab(t);if(t!=="transactions")setTxViewMode("all");}} style={{minWidth:80,padding:"11px 12px",borderRadius:10,border:"none",background:tab===t?C.accent:"transparent",color:tab===t?"#fff":C.muted,cursor:"pointer",fontFamily:"inherit",fontWeight:tab===t?700:500,outline:"none",textAlign:"center",lineHeight:1.3,transition:"all 0.15s"}}>
@@ -7944,7 +8490,27 @@ function App() {
           </div>
         </div>
 
-        {/* ── Overview ── */}
+        {/* ── Home ── */}
+        {tab==="home" && (
+          <div>
+            <HomeTab
+              transactions={transactions}
+              financials={financials}
+              budgets={budgets}
+              taxonomy={taxonomy}
+              displayCurrency={displayCurrency}
+              dispRates={dispRates}
+              globalTypeFilter={globalTypeFilter}
+              setTab={setTab}
+              setModal={setModal}
+              setManageInitSection={setManageInitSection}
+              setPositionUnlocked={setPositionUnlocked}
+              spikeThreshold={spikeThreshold}
+            />
+          </div>
+        )}
+
+        {/* ── Summary ── */}
         {tab==="summary" && (
           <SummaryTab transactions={transactions} taxonomy={taxonomy} displayCurrency={displayCurrency} globalTypeFilter={globalTypeFilter} financials={financials}/>
         )}

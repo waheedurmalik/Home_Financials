@@ -3965,7 +3965,7 @@ function WatchOutTab({transactions, taxonomy, spikeThreshold, setSpikeThreshold,
 
 // ─── FORECAST TAB ────────────────────────────────────────────────────────────
 // Props: transactions, financials, displayCurrency, displayRates, budgets
-function ForecastTab({transactions, financials, displayCurrency, displayRates, budgets, setFinancials, taxonomy}) {
+function ForecastTab({transactions, financials, displayCurrency, displayRates, budgets, setFinancials, taxonomy, onProjectionChange}) {
   var dc = displayCurrency || "AED";
   var C = {accent:"#2a9d6f",danger:"#d94040",text:"#0f1624",muted:"#4a5568",dim:"#7a8699",border:"#cdd1db",bg:"#ecf1eb",surface:"#fff"};
 
@@ -3977,6 +3977,7 @@ function ForecastTab({transactions, financials, displayCurrency, displayRates, b
   var [hoverMonth, setHoverMonth] = useState(null);
   var [editingCell, setEditingCell] = useState(null); // {rowType, rowId, monthKey}
   var [editingValue, setEditingValue] = useState("");
+  var editingValueRef = useRef(""); // mirrors editingValue — avoids stale closure in commitCellEdit
   // catOverrides: read directly from financials.forecastCatOverrides (single source of truth)
   // No local copy — eliminates the two-store sync bug where delete cleared Firestore but not session state
   var [cardAmounts, setCardAmounts] = useState({});     // {cardId: {monthKey: amount}}
@@ -4173,6 +4174,11 @@ function ForecastTab({transactions, financials, displayCurrency, displayRates, b
     setEvtForm(function(p){return Object.assign({},p,{currency:dc});});
   }, [dc]);
 
+  // Bubble projection up to App so HomeTab forecast card shows the same closing balances
+  useEffect(function(){
+    if(onProjectionChange) onProjectionChange(projection);
+  }, [projection]);
+
   // Fetch rates independently — displayRates is null when dc=AED, so ForecastTab needs its own copy
   useEffect(function(){
     getAEDRates().then(function(r){ if(r) setFxRates(r); });
@@ -4346,12 +4352,12 @@ function ForecastTab({transactions, financials, displayCurrency, displayRates, b
 
   function startCellEdit(rowType,rowId,monthKey,currentVal){
     setEditingCell({rowType:rowType,rowId:rowId,monthKey:monthKey});
-    setEditingValue(String(currentVal||""));
+    var iv=String(currentVal||""); setEditingValue(iv); editingValueRef.current=iv;
   }
 
   function commitCellEdit(){
     if(!editingCell) return;
-    var val=parseFloat(editingValue); if(isNaN(val)) val=0;
+    var val=parseFloat(editingValueRef.current); if(isNaN(val)) val=0;
     if(editingCell.rowType==="salary"){
       setMonthlySalary(val);
     } else if(editingCell.rowType==="acct"){
@@ -4409,7 +4415,7 @@ function ForecastTab({transactions, financials, displayCurrency, displayRates, b
         });
       }
     }
-    setEditingCell(null); setEditingValue("");
+    setEditingCell(null); setEditingValue(""); editingValueRef.current="";
   }
 
   function isEditing(rowType,rowId,monthKey){
@@ -4418,7 +4424,7 @@ function ForecastTab({transactions, financials, displayCurrency, displayRates, b
 
   function handleKeyDown(e){
     if(e.key==="Enter") commitCellEdit();
-    if(e.key==="Escape"){setEditingCell(null);setEditingValue("");}
+    if(e.key==="Escape"){setEditingCell(null);setEditingValue("");editingValueRef.current="";}
   }
 
   // Editable cell — current month only (for account rows)
@@ -4428,7 +4434,7 @@ function ForecastTab({transactions, financials, displayCurrency, displayRates, b
     if(isEditing("acct",rowId,"m0")){
       return React.createElement("td",{key:"m0",style:{textAlign:"right",padding:"2px 4px",minWidth:72}},
         React.createElement("input",{type:"text",inputMode:"decimal",value:editingValue,
-          onChange:function(e){setEditingValue(e.target.value);},
+          onChange:function(e){setEditingValue(e.target.value);editingValueRef.current=e.target.value;},
           onBlur:commitCellEdit,onKeyDown:handleKeyDown,autoFocus:true,
           style:{width:66,textAlign:"right",padding:"4px 5px",borderRadius:6,border:"2px solid #2a9d6f",
                  fontSize:11,fontFamily:"monospace",background:"#fff",outline:"none",boxSizing:"border-box"}}));
@@ -4445,7 +4451,7 @@ function ForecastTab({transactions, financials, displayCurrency, displayRates, b
     if(isEditing(rowType,rowId,monthKey)){
       return React.createElement("td",{key:monthKey,style:{textAlign:"right",padding:"2px 4px",minWidth:72}},
         React.createElement("input",{type:"text",inputMode:"decimal",value:editingValue,
-          onChange:function(e){setEditingValue(e.target.value);},
+          onChange:function(e){setEditingValue(e.target.value);editingValueRef.current=e.target.value;},
           onBlur:commitCellEdit,onKeyDown:handleKeyDown,autoFocus:true,
           style:{width:66,textAlign:"right",padding:"4px 5px",borderRadius:6,border:"2px solid #2a9d6f",
                  fontSize:11,fontFamily:"monospace",background:"#fff",outline:"none",boxSizing:"border-box"}}));
@@ -5021,7 +5027,7 @@ function ForecastTab({transactions, financials, displayCurrency, displayRates, b
 }
 
 // ─── Home Tab (Phase C) ───────────────────────────────────────────────────────
-function HomeTab({transactions, financials, budgets, taxonomy, displayCurrency, dispRates, globalTypeFilter, setTab, setModal, setManageInitSection, setPositionUnlocked, spikeThreshold}) {
+function HomeTab({transactions, financials, budgets, taxonomy, displayCurrency, dispRates, globalTypeFilter, setTab, setModal, setManageInitSection, setPositionUnlocked, spikeThreshold, forecastProjection}) {
   var [flippedCard,   setFlippedCard]   = useState(null); // 1–8 | null
   var [flippedAction, setFlippedAction] = useState(null); // "input"|"manage"|"tools" | null
   var [isWide,        setIsWide]        = useState(typeof window!=="undefined"&&window.innerWidth>=700);
@@ -5169,36 +5175,19 @@ function HomeTab({transactions, financials, budgets, taxonomy, displayCurrency, 
   },[transactions, globalTypeFilter]);
 
   // Forecast: simple 3-month mini-projection from current cash + accounts
+  // miniProjection: use the already-computed projection from ForecastTab (bubbled up via App).
+  // Falls back to month labels only (no closing value) if ForecastTab hasn't mounted yet.
   var miniProjection = useMemo(function(){
-    var accounts = (financials&&financials.accounts)||[];
-    var cash     = (financials&&financials.cash)||[];
-    var start = accounts.reduce(function(s,a){return s+(a.balance||0);},0)
-              + cash.reduce(function(s,c){return s+(c.amount||0);},0);
-    // Rough monthly net from forecastSpendRows + events
-    var rows   = (financials&&financials.forecastSpendRows)||[];
-    var events = (financials&&financials.forecastEvents)||[];
     var months = [];
     for(var i=0;i<3;i++){
       var d = new Date(now.getFullYear(), now.getMonth()+i, 1);
       var ym = d.getFullYear()+"-"+_p2(d.getMonth()+1);
       var mo3 = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][d.getMonth()];
-      // sum outgoings for this month
-      var out = rows.reduce(function(s,r){
-        if(ym<r.fromMonth||ym>r.toMonth) return s;
-        var bcat=budgets&&budgets[r.cat];
-        var amt=r.useBudget?(bcat&&bcat.monthly||0):Number(r.amount)||0;
-        return s+amt;
-      },0);
-      // sum events for this month
-      var evtNet = events.reduce(function(s,e){
-        if(!e.months||!e.months.includes(ym)) return s;
-        return s+(e.isInc?e.amount:-e.amount);
-      },0);
-      months.push({ym:ym,label:mo3,closing:start-out+evtNet,out:out,evtNet:evtNet});
-      start = start-out+evtNet;
+      var projRow = forecastProjection&&forecastProjection[i];
+      months.push({ym:ym,label:mo3,closing:projRow?projRow.closing:null});
     }
     return months;
-  },[financials, budgets, now]);
+  },[forecastProjection, now]);
 
   function fmtK(n){
     var rate = (_globalDispRates&&Object.values(_globalDispRates)[0])||1;
@@ -5278,7 +5267,7 @@ function HomeTab({transactions, financials, budgets, taxonomy, displayCurrency, 
         background:props.bg}}>
         {props.texture&&props.texture}
         {/* icon glyph — sized explicitly so SVGs render at full size */}
-        <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",paddingBottom:glyphPb,filter:shadow,zIndex:1}}>
+        <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",paddingBottom:glyphPb,paddingTop:22,filter:shadow,zIndex:1,overflow:"hidden"}}>
           <div style={{width:glyphSz,height:glyphSz,display:"flex",alignItems:"center",justifyContent:"center",fontSize:glyphSz,lineHeight:1}}>
             {props.glyph}
           </div>
@@ -5402,7 +5391,7 @@ function HomeTab({transactions, financials, budgets, taxonomy, displayCurrency, 
               {miniProjection.map(function(m){
                 return <div key={m.ym} style={{flex:1,background:"rgba(255,255,255,0.08)",borderRadius:10,padding:"8px 4px",textAlign:"center",display:"flex",flexDirection:"column",justifyContent:"center",gap:4}}>
                   <div style={{fontSize:8,color:"rgba(255,255,255,0.45)",fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase"}}>{m.label}</div>
-                  <div style={{fontSize:13,fontWeight:800,color:"#fff",fontFamily:"monospace",letterSpacing:"-0.3px"}}>{fmtK(m.closing)}</div>
+                  <div style={{fontSize:13,fontWeight:800,color:"#fff",fontFamily:"monospace",letterSpacing:"-0.3px"}}>{m.closing!==null?fmtK(m.closing):"—"}</div>
                 </div>;
               })}
             </div>,
@@ -8086,6 +8075,7 @@ function App() {
   const [displayRates, setDisplayRates] = useState(null); // {GBP: 0.21, ...} rates from AED
   const [modal,      setModal]        = useState(null);
   const [manageInitSection, setManageInitSection] = useState("categories");
+  const [forecastProjection, setForecastProjection] = useState([]); // lifted from ForecastTab — closing balances
   const [remapTx,    setRemapTx]      = useState(null);
   const [loaded,     setLoaded]       = useState(false);
   const [drillCat,   setDrillCat]     = useState(null);
@@ -8844,6 +8834,7 @@ function App() {
               setManageInitSection={setManageInitSection}
               setPositionUnlocked={setPositionUnlocked}
               spikeThreshold={spikeThreshold}
+              forecastProjection={forecastProjection}
             />
           </div>
         )}
@@ -8872,6 +8863,7 @@ function App() {
               budgets={budgets}
               setFinancials={setFinancials}
               taxonomy={taxonomy}
+              onProjectionChange={setForecastProjection}
             />
           </div>
         )}

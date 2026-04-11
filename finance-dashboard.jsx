@@ -5032,7 +5032,7 @@ function ForecastTab({transactions, financials, displayCurrency, displayRates, b
 }
 
 // ─── Home Tab (Phase C) ───────────────────────────────────────────────────────
-function HomeTab({transactions, financials, budgets, taxonomy, displayCurrency, dispRates, globalTypeFilter, setTab, setModal, setManageInitSection, setPositionUnlocked, spikeThreshold, forecastProjection}) {
+function HomeTab({transactions, financials, budgets, taxonomy, displayCurrency, dispRates, globalTypeFilter, setTab, setModal, setManageInitSection, setManualInitMode, setManualFromHome, setPositionUnlocked, spikeThreshold, forecastProjection}) {
   var [flippedCard,   setFlippedCard]   = useState(null); // 1–8 | null
   var [flippedAction, setFlippedAction] = useState(null); // "input"|"manage"|"tools" | null
   var [isWide,        setIsWide]        = useState(typeof window!=="undefined"&&window.innerWidth>=700);
@@ -5265,6 +5265,8 @@ function HomeTab({transactions, financials, budgets, taxonomy, displayCurrency, 
     var glyphSz = props.glyphSize||(props.isWide?116:82);
     var glyphPb = props.isWide?68:52;
     var shadow  = props.isWide?"drop-shadow(0 6px 22px rgba(0,0,0,0.38))":"drop-shadow(0 4px 16px rgba(0,0,0,0.28))";
+    var [imgFailed, setImgFailed] = useState(false);
+    var showImg = props.imgSrc && !imgFailed;
     return (
       <div style={{position:"absolute",inset:0,borderRadius:22,
         backfaceVisibility:"hidden",WebkitBackfaceVisibility:"hidden",
@@ -5272,9 +5274,12 @@ function HomeTab({transactions, financials, budgets, taxonomy, displayCurrency, 
         background:props.bg}}>
         {props.texture&&props.texture}
         {/* icon glyph — sized explicitly so SVGs render at full size */}
+        {/* icon glyph — PNG if available, SVG fallback */}
         <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",paddingBottom:glyphPb,paddingTop:22,filter:shadow,zIndex:1,overflow:"hidden"}}>
           <div style={{width:glyphSz,height:glyphSz,display:"flex",alignItems:"center",justifyContent:"center",fontSize:glyphSz,lineHeight:1}}>
-            {props.glyph}
+            {showImg
+              ? <img src={props.imgSrc} alt="" width={glyphSz} height={glyphSz} style={{objectFit:"contain",display:"block"}} onError={function(){setImgFailed(true);}}/>
+              : props.glyph}
           </div>
         </div>
         {/* top-left label */}
@@ -5331,7 +5336,7 @@ function HomeTab({transactions, financials, budgets, taxonomy, displayCurrency, 
 
         {/* 1. MONTHLY SUMMARY */}
         {Scene({idx:1,height:isWide?220:178,children:[
-          CardFront({isWide:isWide,bg:"linear-gradient(140deg,#1a6a3a 0%,#2a9d6f 100%)",section:"Summary",
+          CardFront({isWide:isWide,imgSrc:"/Home_Financials/card1-icon.png",bg:"linear-gradient(140deg,#1a6a3a 0%,#2a9d6f 100%)",section:"Summary",
             glyph:<svg viewBox="0 0 100 90" width={isWide?116:82} height={isWide?116:82} xmlns="http://www.w3.org/2000/svg">
               {/* Pediment */}
               <polygon points="50,4 92,22 8,22" fill="rgba(255,255,255,0.95)" stroke="rgba(255,255,255,0.4)" strokeWidth="1"/>
@@ -5367,7 +5372,7 @@ function HomeTab({transactions, financials, budgets, taxonomy, displayCurrency, 
 
         {/* 2. FORECAST CASHFLOW */}
         {Scene({idx:2,height:isWide?220:178,children:[
-          CardFront({isWide:isWide,bg:"linear-gradient(140deg,#1e3a5f 0%,#2a5298 100%)",section:"Forecast",glyph:<svg viewBox="0 0 100 80" width={isWide?116:82} height={isWide?116:82} xmlns="http://www.w3.org/2000/svg">
+          CardFront({isWide:isWide,imgSrc:"/Home_Financials/card2-icon.png",bg:"linear-gradient(140deg,#1e3a5f 0%,#2a5298 100%)",section:"Forecast",glyph:<svg viewBox="0 0 100 80" width={isWide?116:82} height={isWide?116:82} xmlns="http://www.w3.org/2000/svg">
               <defs>
                 <linearGradient id="chartfill" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0%" stopColor="rgba(255,255,255,0.35)"/>
@@ -5406,7 +5411,7 @@ function HomeTab({transactions, financials, budgets, taxonomy, displayCurrency, 
 
         {/* 3. INCOME & SPEND ANALYSIS */}
         {Scene({idx:3,height:isWide?220:178,children:[
-          CardFront({isWide:isWide,bg:"linear-gradient(140deg,#7a1a5e 0%,#b02880 100%)",section:"Analysis",glyph:
+          CardFront({isWide:isWide,imgSrc:"/Home_Financials/card3-icon.png",bg:"linear-gradient(140deg,#7a1a5e 0%,#b02880 100%)",section:"Analysis",glyph:
             <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:isWide?6:4}}>
               <span style={{fontSize:isWide?58:42,lineHeight:1}}>✈️</span>
               <div style={{display:"flex",gap:isWide?10:7}}>
@@ -5433,7 +5438,7 @@ function HomeTab({transactions, financials, budgets, taxonomy, displayCurrency, 
         {/* 4. TRANSACTION ANALYSIS */}
         {Scene({idx:4,height:isWide?220:178,children:[
           CardFront({
-            isWide:isWide,
+            isWide:isWide,imgSrc:"/Home_Financials/card4-icon.png",
             bg:"linear-gradient(140deg,#2a1a3a 0%,#5a3070 100%)",
             section:"Transactions",
             glyph:<svg viewBox="0 0 150 108" width={isWide?158:130} height={isWide?115:95} xmlns="http://www.w3.org/2000/svg">
@@ -5562,7 +5567,7 @@ function HomeTab({transactions, financials, budgets, taxonomy, displayCurrency, 
 
         {/* 5. BUDGET STATUS */}
         {Scene({idx:5,height:isWide?220:178,children:[
-          CardFront({isWide:isWide,bg:"linear-gradient(140deg,#8a5200 0%,#c8860a 100%)",section:"Budget",glyph:<svg viewBox="0 0 100 100" width={isWide?116:82} height={isWide?116:82} xmlns="http://www.w3.org/2000/svg">
+          CardFront({isWide:isWide,imgSrc:"/Home_Financials/card5-icon.png",bg:"linear-gradient(140deg,#8a5200 0%,#c8860a 100%)",section:"Budget",glyph:<svg viewBox="0 0 100 100" width={isWide?116:82} height={isWide?116:82} xmlns="http://www.w3.org/2000/svg">
               {/* Outer ring */}
               <circle cx="50" cy="50" r="44" fill="rgba(255,255,255,0.12)" stroke="rgba(255,255,255,0.6)" strokeWidth="3"/>
               {/* Middle ring */}
@@ -5585,7 +5590,7 @@ function HomeTab({transactions, financials, budgets, taxonomy, displayCurrency, 
 
         {/* 6. SPEND ALERT */}
         {Scene({idx:6,height:isWide?220:178,children:[
-          CardFront({isWide:isWide,bg:"linear-gradient(140deg,#0a5e45 0%,#0f8f68 100%)",section:"Spend Alert",glyph:<svg viewBox="0 0 100 100" width={isWide?116:82} height={isWide?116:82} xmlns="http://www.w3.org/2000/svg">
+          CardFront({isWide:isWide,imgSrc:"/Home_Financials/card6-icon.png",bg:"linear-gradient(140deg,#0a5e45 0%,#0f8f68 100%)",section:"Spend Alert",glyph:<svg viewBox="0 0 100 100" width={isWide?116:82} height={isWide?116:82} xmlns="http://www.w3.org/2000/svg">
               {/* Motion lines */}
               <path d="M18,30 Q12,42 18,54" fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="2.5" strokeLinecap="round"/>
               <path d="M11,22 Q2,42 11,62" fill="none" stroke="rgba(255,255,255,0.2)" strokeWidth="2" strokeLinecap="round"/>
@@ -5615,7 +5620,7 @@ function HomeTab({transactions, financials, budgets, taxonomy, displayCurrency, 
 
         {/* 7. VENDOR SPEND ANALYSIS */}
         {Scene({idx:7,height:isWide?220:178,children:[
-          CardFront({isWide:isWide,bg:"linear-gradient(140deg,#1a3a5a 0%,#1e5f8a 100%)",section:"Vendors",glyph:<svg viewBox="0 0 100 90" width={isWide?116:82} height={isWide?116:82} xmlns="http://www.w3.org/2000/svg">
+          CardFront({isWide:isWide,imgSrc:"/Home_Financials/card7-icon.png",bg:"linear-gradient(140deg,#1a3a5a 0%,#1e5f8a 100%)",section:"Vendors",glyph:<svg viewBox="0 0 100 90" width={isWide?116:82} height={isWide?116:82} xmlns="http://www.w3.org/2000/svg">
               {/* Building */}
               <rect x="8" y="36" width="84" height="50" rx="3" fill="rgba(255,255,255,0.85)"/>
               {/* Awning */}
@@ -5669,16 +5674,22 @@ function HomeTab({transactions, financials, budgets, taxonomy, displayCurrency, 
               style={{height:isWide?220:178,borderRadius:22,cursor:"pointer",position:"relative",overflow:"hidden",
                 background:"linear-gradient(140deg,#3d2d8a 0%,#5a46c0 100%)"}}>
               <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",paddingBottom:isWide?68:52,filter:isWide?"drop-shadow(0 6px 22px rgba(0,0,0,0.38))":"drop-shadow(0 4px 16px rgba(0,0,0,0.28))",zIndex:1}}>
-                <div style={{width:isWide?116:82,height:isWide?116:82,display:"flex",alignItems:"center",justifyContent:"center"}}>
-                  <svg viewBox="0 0 100 100" width={isWide?116:82} height={isWide?116:82} xmlns="http://www.w3.org/2000/svg">
-                    <path d="M50,6 L88,22 L88,54 C88,74 72,88 50,96 C28,88 12,74 12,54 L12,22 Z" fill="rgba(255,255,255,0.18)" stroke="rgba(255,255,255,0.7)" strokeWidth="2.5"/>
-                    <path d="M50,14 L80,27 L80,54 C80,70 67,82 50,89 C33,82 20,70 20,54 L20,27 Z" fill="rgba(255,255,255,0.10)"/>
-                    <text x="50" y="62" textAnchor="middle" fontSize="36" fontWeight="900" fontFamily="Arial,sans-serif" fill="rgba(255,255,255,0.95)">£</text>
-                    <rect x="40" y="76" width="20" height="14" rx="3" fill="rgba(255,255,255,0.5)"/>
-                    <path d="M44,76 L44,71 Q44,64 50,64 Q56,64 56,71 L56,76" fill="none" stroke="rgba(255,255,255,0.5)" strokeWidth="2.5" strokeLinecap="round"/>
-                    <circle cx="50" cy="83" r="2.5" fill="rgba(90,70,192,0.7)"/>
-                  </svg>
-                </div>
+                {(function(){
+                  var sz=isWide?116:82;
+                  var [c8img,setC8img]=useState(true);
+                  return <div style={{width:sz,height:sz,display:"flex",alignItems:"center",justifyContent:"center"}}>
+                    {c8img
+                      ? <img src="/Home_Financials/card8-icon.png" alt="" width={sz} height={sz} style={{objectFit:"contain",display:"block"}} onError={function(){setC8img(false);}}/>
+                      : <svg viewBox="0 0 100 100" width={sz} height={sz} xmlns="http://www.w3.org/2000/svg">
+                          <path d="M50,6 L88,22 L88,54 C88,74 72,88 50,96 C28,88 12,74 12,54 L12,22 Z" fill="rgba(255,255,255,0.18)" stroke="rgba(255,255,255,0.7)" strokeWidth="2.5"/>
+                          <path d="M50,14 L80,27 L80,54 C80,70 67,82 50,89 C33,82 20,70 20,54 L20,27 Z" fill="rgba(255,255,255,0.10)"/>
+                          <text x="50" y="62" textAnchor="middle" fontSize="36" fontWeight="900" fontFamily="Arial,sans-serif" fill="rgba(255,255,255,0.95)">£</text>
+                          <rect x="40" y="76" width="20" height="14" rx="3" fill="rgba(255,255,255,0.5)"/>
+                          <path d="M44,76 L44,71 Q44,64 50,64 Q56,64 56,71 L56,76" fill="none" stroke="rgba(255,255,255,0.5)" strokeWidth="2.5" strokeLinecap="round"/>
+                          <circle cx="50" cy="83" r="2.5" fill="rgba(90,70,192,0.7)"/>
+                        </svg>}
+                  </div>;
+                })()}
               </div>
               <div style={{position:"absolute",top:11,left:12,zIndex:2,fontSize:9,fontWeight:700,color:"rgba(255,255,255,0.42)",letterSpacing:"0.09em",textTransform:"uppercase"}}>Position</div>
               <div style={{position:"absolute",bottom:0,left:0,right:0,padding:"9px 13px 12px",background:"linear-gradient(to top,rgba(0,0,0,0.52) 0%,transparent 100%)",zIndex:2}}>
@@ -5718,9 +5729,9 @@ function HomeTab({transactions, financials, budgets, taxonomy, displayCurrency, 
                 {/* Back — 3 sub-tiles */}
                 <div style={{position:"absolute",inset:0,borderRadius:16,backfaceVisibility:"hidden",WebkitBackfaceVisibility:"hidden",transform:"rotateY(180deg)",WebkitTransform:"rotateY(180deg)",background:"#1a1f2e",display:"flex",alignItems:"center",gap:7,padding:"0 12px"}}>
                   {[
-                    ["📸","Scan /\nImport", function(){ setFlippedAction(null); setModal("import"); }],
-                    ["➕","Add\nTransaction", function(){ setFlippedAction(null); setModal("manual"); }],
-                    ["💼","Update\nPosition", function(){ setFlippedAction(null); setManageInitSection("financial"); setModal("manage"); }],
+                    ["📸","Scan /\nImport", function(){ setFlippedAction(null); setManualInitMode("scan"); setManualFromHome(true); setModal("manual"); }],
+                    ["➕","Add\nTransaction", function(){ setFlippedAction(null); setManualInitMode("transaction"); setManualFromHome(true); setModal("manual"); }],
+                    ["💼","Update\nPosition", function(){ setFlippedAction(null); setManualInitMode("position"); setManualFromHome(true); setModal("manual"); }],
                   ].map(function(item,i){
                     return <button key={i} onClick={function(e){e.stopPropagation();item[2]();}}
                       style={{flex:1,height:46,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.11)",borderRadius:11,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:2,cursor:"pointer",fontFamily:"inherit",padding:"0 2px"}}>
@@ -7898,8 +7909,8 @@ function ScanDataPanel({onImport, onClose, taxonomy, vendorMap, financials}) {
 }
 
 // ─── Manual Entry Modal ───────────────────────────────────────────────────────
-function ManualEntryModal({onImport, taxonomy, vendorMap, financials, setFinancials, onClose}) {
-  const [mode, setMode]   = useState("transaction"); // "transaction" | "position" | "scan"
+function ManualEntryModal({onImport, taxonomy, vendorMap, financials, setFinancials, onClose, initialMode, singleSection}) {
+  const [mode, setMode]   = useState(initialMode||"transaction"); // "transaction" | "position" | "scan"
   const [date, setDate]   = useState((function(){ var d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); })());
   const [desc, setDesc]   = useState("");
   const [amount, setAmount] = useState("");
@@ -7932,12 +7943,12 @@ function ManualEntryModal({onImport, taxonomy, vendorMap, financials, setFinanci
   return (
     <div style={{position:"fixed",inset:0,background:"rgba(13,15,14,0.96)",zIndex:500,display:"flex",alignItems:"center",justifyContent:"center",padding:16,overflowY:"auto"}}>
       <div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:20,padding:24,maxWidth:480,width:"100%",maxHeight:"94vh",overflowY:"auto"}}>
-        {/* Mode tabs */}
-        <div style={{display:"flex",gap:2,background:C.s2,borderRadius:12,padding:4,marginBottom:20}}>
+        {/* Mode tabs — hidden when opened from Home (singleSection) */}
+        {!singleSection&&<div style={{display:"flex",gap:2,background:C.s2,borderRadius:12,padding:4,marginBottom:20}}>
           {[["transaction","✏️ Transaction"],["position","💰 Financial Position"],["scan","📷 Scan"]].map(([m,l])=>(
             <button key={m} onClick={()=>setMode(m)} style={{flex:1,padding:"9px 0",borderRadius:9,border:"none",background:mode===m?C.surface:"transparent",color:mode===m?C.text:C.muted,fontWeight:mode===m?700:500,fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>{l}</button>
           ))}
-        </div>
+        </div>}
 
         {/* ── TRANSACTION MODE ── */}
         {mode==="transaction"&&<div>
@@ -8080,6 +8091,8 @@ function App() {
   const [displayRates, setDisplayRates] = useState(null); // {GBP: 0.21, ...} rates from AED
   const [modal,      setModal]        = useState(null);
   const [manageInitSection, setManageInitSection] = useState("categories");
+  const [manualInitMode,    setManualInitMode]    = useState("transaction");
+  const [manualFromHome,    setManualFromHome]    = useState(false);
   const [forecastProjection, setForecastProjection] = useState([]); // lifted from ForecastTab — closing balances
   const [remapTx,    setRemapTx]      = useState(null);
   const [loaded,     setLoaded]       = useState(false);
@@ -8649,7 +8662,7 @@ function App() {
       <style>{`*{box-sizing:border-box;margin:0;padding:0;}select,input,textarea,button{font-family:inherit;} body{background:#f4f6f9;}`}</style>
 
       {modal==="import"   && <ImportModal onImport={handleImport} onClose={()=>setModal(null)}/>}
-      {modal==="manual"   && <ManualEntryModal onImport={handleImport} taxonomy={taxonomy} vendorMap={vendorMap} financials={financials} setFinancials={setFinancials} onClose={()=>setModal(null)}/>}
+      {modal==="manual"   && <ManualEntryModal onImport={handleImport} taxonomy={taxonomy} vendorMap={vendorMap} financials={financials} setFinancials={setFinancials} onClose={()=>{setModal(null);setManualFromHome(false);}} initialMode={manualInitMode} singleSection={manualFromHome}/>}
       {modal==="manage"   && <ManageModal taxonomy={taxonomy} setTaxonomy={setTaxonomy} vendorMap={vendorMap} setVendorMap={setVendorMap} rawTxs={rawTxs} setRawTxs={setRawTxs} financials={financials} setFinancials={setFinancials} budgets={budgets} initialSection={manageInitSection} singleSection={true} onClose={()=>setModal(null)}/>}
       {modal==="remap"    && remapTx && <RemapModal tx={remapTx} taxonomy={taxonomy} accounts={(financials&&financials.accounts)||[]} onSave={handleRemap} onClose={()=>{setModal(null);setRemapTx(null);}}/>}
       {modal==="export"   && <ExportModal transactions={transactions} taxonomy={taxonomy} currency={currency} onClose={()=>setModal(null)}/>}
@@ -8836,7 +8849,7 @@ function App() {
               globalTypeFilter={globalTypeFilter}
               setTab={setTab}
               setModal={setModal}
-              setManageInitSection={setManageInitSection}
+              setManageInitSection={setManageInitSection} setManualInitMode={setManualInitMode} setManualFromHome={setManualFromHome}
               setPositionUnlocked={setPositionUnlocked}
               spikeThreshold={spikeThreshold}
               forecastProjection={forecastProjection}

@@ -7353,22 +7353,88 @@ function ScanDataPanel({ onImport, onClose, taxonomy, vendorMap, financials }) {
         var existingUsage = storeLoad(GEMINI_USAGE_KEY) || [];
         storeSave(GEMINI_USAGE_KEY, existingUsage.concat([usageRecord]));
       } else {
+        let parseXlsDate2 = function(raw) {
+          if (!raw) return null;
+          var s = String(raw).trim();
+          var m = s.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})$/);
+          if (m) return m[3] + "-" + m[2].padStart(2, "0") + "-" + m[1].padStart(2, "0");
+          m = s.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{2})$/);
+          if (m) {
+            var yr = parseInt(m[3]);
+            return (yr >= 50 ? 1900 + yr : 2e3 + yr) + "-" + m[2].padStart(2, "0") + "-" + m[1].padStart(2, "0");
+          }
+          var months = { jan: "01", feb: "02", mar: "03", apr: "04", may: "05", jun: "06", jul: "07", aug: "08", sep: "09", oct: "10", nov: "11", dec: "12" };
+          m = s.match(/^(\d{1,2})([A-Za-z]{3})(\d{4})$/);
+          if (m && months[m[2].toLowerCase()]) return m[3] + "-" + months[m[2].toLowerCase()] + "-" + m[1].padStart(2, "0");
+          m = s.match(/^(\d{1,2})([A-Za-z]{3})(\d{2})$/);
+          if (m && months[m[2].toLowerCase()]) {
+            var yr2 = parseInt(m[3]);
+            return (yr2 >= 50 ? 1900 + yr2 : 2e3 + yr2) + "-" + months[m[2].toLowerCase()] + "-" + m[1].padStart(2, "0");
+          }
+          return null;
+        }, parseXlsAmount2 = function(raw) {
+          if (raw === null || raw === void 0 || raw === "") return null;
+          var n = parseFloat(String(raw).replace(/,/g, "").trim());
+          return isNaN(n) ? null : n;
+        };
+        var parseXlsDate = parseXlsDate2, parseXlsAmount = parseXlsAmount2;
         if (!xlsFile || !xlsRows || !xlsRows.length) {
           setErr("Select a spreadsheet first.");
           setStatus("idle");
           return;
         }
-        var rowText = xlsRows.slice(0, 500).map(function(row) {
-          return row.map(function(cell) {
-            return cell === null || cell === void 0 ? "" : String(cell);
-          }).join(" | ");
-        }).join("\n");
-        var xlsResult = await callCloudFn({ spreadsheetText: rowText });
-        txs = xlsResult.transactions || xlsResult;
-        if (xlsResult.piiReport) setPiiReport(xlsResult.piiReport);
-        var xlsCost = calcGeminiCost(xlsResult.inputTokens || 0, xlsResult.outputTokens || 0);
-        if (xlsCost > 0 || (xlsResult.inputTokens || 0) > 0) addLog("\u{1F4CA} Tokens: " + Math.round((xlsResult.inputTokens || 0) / 1e3) + "K in / " + Math.round((xlsResult.outputTokens || 0) / 1e3) + "K out \xB7 est. \xA3" + xlsCost.toFixed(4));
-        var xlsRec = { date: (/* @__PURE__ */ new Date()).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }), mode: "spreadsheet", txCount: (txs || []).length, inputTokens: xlsResult.inputTokens || 0, outputTokens: xlsResult.outputTokens || 0, costGBP: xlsCost };
+        var dataRows = xlsRows;
+        if (xlsRows.length > 0 && !parseXlsDate2(xlsRows[0][0])) dataRows = xlsRows.slice(1);
+        addLog("Parsing " + dataRows.length + " rows locally\u2026");
+        var parsedTxs = [];
+        var parseErrors = 0;
+        dataRows.forEach(function(row) {
+          var dateVal = parseXlsDate2(row[0]);
+          var desc = row[1] !== null && row[1] !== void 0 ? String(row[1]).trim() : "";
+          var amtRaw = parseXlsAmount2(row[2]);
+          if (!dateVal || !desc || amtRaw === null) {
+            parseErrors++;
+            return;
+          }
+          parsedTxs.push({ date: dateVal, description: desc, amount: Math.abs(amtRaw), isCredit: amtRaw > 0 });
+        });
+        addLog("\u2713 Parsed " + parsedTxs.length + " transactions" + (parseErrors > 0 ? " (" + parseErrors + " rows skipped)" : ""));
+        if (!parsedTxs.length) throw new Error("Could not parse any transactions \u2014 check spreadsheet format");
+        var knownDescs = new Set(Object.keys(vendorMap || {}));
+        var uniqueUnknown = [...new Set(parsedTxs.map(function(t) {
+          return t.description;
+        }))].filter(function(d) {
+          return !knownDescs.has(d);
+        });
+        var suggestions = {};
+        if (uniqueUnknown.length > 0) {
+          addLog("Asking Gemini for vendor suggestions on " + uniqueUnknown.length + " new descriptions\u2026");
+          try {
+            var { auth } = getFB();
+            var user = auth.currentUser;
+            var token = await user.getIdToken();
+            var suggestRes = await fetch(CLOUD_FN_URL, { method: "POST", headers: { "Content-Type": "application/json", "Authorization": "Bearer " + token }, body: JSON.stringify({ descriptionList: uniqueUnknown }) });
+            if (suggestRes.ok) {
+              var suggestData = await suggestRes.json();
+              (suggestData.suggestions || []).forEach(function(s) {
+                if (s.description) suggestions[s.description] = s;
+              });
+              addLog("\u2713 Vendor suggestions received for " + Object.keys(suggestions).length + " descriptions");
+            }
+          } catch (e) {
+            addLog("\u26A0 Vendor suggestions unavailable \u2014 continuing without");
+          }
+        }
+        txs = parsedTxs.map(function(t) {
+          var mapped = (vendorMap || {})[t.description];
+          var suggested = suggestions[t.description];
+          return Object.assign({}, t, {
+            vendor: mapped ? mapped.vendor || null : suggested && suggested.vendor ? suggested.vendor : null,
+            category: mapped ? mapped.category : suggested ? suggested.category || "" : "",
+            subcategory: mapped ? mapped.subcategory : suggested ? suggested.subcategory || "" : ""
+          });
+        });
+        var xlsRec = { date: (/* @__PURE__ */ new Date()).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }), mode: "spreadsheet", txCount: txs.length, inputTokens: 0, outputTokens: 0, costGBP: 0 };
         storeSave(GEMINI_USAGE_KEY, (storeLoad(GEMINI_USAGE_KEY) || []).concat([xlsRec]));
       }
       setPreview(txs);

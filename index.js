@@ -170,7 +170,7 @@ functions.http("parseStatement", async function(req, res) {
       const response = await ai.models.generateContent({
         model: GEMINI_MODEL,
         contents: [{ role: "user", parts: [{ text: prompt }] }],
-        config: { maxOutputTokens: 8192, temperature: 0, responseMimeType: "application/json" }
+        config: { maxOutputTokens: 8192, temperature: 0 }
       });
       const raw = response.text || "";
       const clean = raw.replace(/```json|```/g, "").trim();

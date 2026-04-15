@@ -1364,6 +1364,7 @@ function ManageModal({taxonomy,setTaxonomy,vendorMap,setVendorMap,vendorList,set
           const [bulkVSub,setBulkVSub]=React.useState("");
           const [bulkVTxType,setBulkVTxType]=React.useState("standard");
           const [bulkVName,setBulkVName]=React.useState(""); // rename selected vendors to this name
+          const [bulkVNameText,setBulkVNameText]=React.useState(""); // free-text when "type new" chosen
           const [bulkDelConfirm,setBulkDelConfirm]=React.useState(false);
 
           const allVendors=(vendorList||[]).slice().sort((a,b)=>vendorMgrSort==="za"?b.name.localeCompare(a.name):a.name.localeCompare(b.name));
@@ -1431,7 +1432,14 @@ function ManageModal({taxonomy,setTaxonomy,vendorMap,setVendorMap,vendorList,set
                 <div style={{fontSize:11,fontWeight:700,color:C.accent,marginBottom:10,textTransform:"uppercase",letterSpacing:"0.05em"}}>Bulk edit — {vendorSelSet.size} vendor{vendorSelSet.size!==1?"s":""}</div>
                 <div style={{marginBottom:8}}>
                   <div style={{fontSize:11,color:C.dim,marginBottom:4}}>Rename to (optional — merges selected into one)</div>
-                  <input value={bulkVName} onChange={e=>setBulkVName(e.target.value)} placeholder="New vendor name…" style={{...inp({padding:"5px 8px",fontSize:12}),width:"100%",boxSizing:"border-box"}}/>
+                  <select value={bulkVName||"_keep"} onChange={e=>setBulkVName(e.target.value==="_keep"?"":e.target.value==="_new_"?"__new__":e.target.value)} style={{...inp({padding:"5px 8px",fontSize:12}),width:"100%",boxSizing:"border-box",appearance:"none"}}>
+                    <option value="_keep">— Keep names —</option>
+                    {allVendors.filter(v=>!vendorSelSet.has(v.name)).map(v=><option key={v.name} value={v.name}>{v.name}</option>)}
+                    <option value="_new_">＋ Type new name…</option>
+                  </select>
+                  {bulkVName==="__new__"&&(
+                    <input value={bulkVNameText||""} onChange={e=>setBulkVNameText(e.target.value)} placeholder="New vendor name…" style={{...inp({padding:"5px 8px",fontSize:12}),width:"100%",boxSizing:"border-box",marginTop:6}} autoFocus/>
+                  )}
                 </div>
                 <div style={{display:"flex",gap:8,marginBottom:8}}>
                   <select value={bulkVCat} onChange={e=>{setBulkVCat(e.target.value);setBulkVSub("");}} style={{...inp({padding:"5px 8px",fontSize:12}),flex:1,appearance:"none"}}>
@@ -1461,9 +1469,10 @@ function ManageModal({taxonomy,setTaxonomy,vendorMap,setVendorMap,vendorList,set
                 ):(
                   <div style={{display:"flex",gap:8}}>
                     <button onClick={()=>{
-                      const hasNameChange=bulkVName.trim()!=="";
+                      const resolvedName=bulkVName==="__new__"?bulkVNameText.trim():bulkVName;
+                      const hasNameChange=resolvedName!==""&&resolvedName!=="__new__";
                       if(!bulkVCat&&bulkVTxType==="standard"&&!hasNameChange) return;
-                      const newName=bulkVName.trim();
+                      const newName=resolvedName;
                       setVendorList(prev=>{
                         const selectedNames=vendorSelSet;
                         if(hasNameChange) {
@@ -1487,8 +1496,8 @@ function ManageModal({taxonomy,setTaxonomy,vendorMap,setVendorMap,vendorList,set
                         const selectedNames=new Set(vendorSelSet);
                         setRawTxs(prev=>prev.map(t=>selectedNames.has(t.vendor)?{...t,vendor:newName}:t));
                       }
-                      setVendorSelSet(new Set()); setBulkVCat(""); setBulkVSub(""); setBulkVTxType("standard"); setBulkVName("");
-                    }} disabled={!bulkVCat&&bulkVTxType==="standard"&&!bulkVName.trim()} style={{...btn((!bulkVCat&&bulkVTxType==="standard"&&!bulkVName.trim())?C.s3:C.accent,(!bulkVCat&&bulkVTxType==="standard"&&!bulkVName.trim())?C.dim:"#fff","none",12,"8px 0"),flex:1,opacity:(!bulkVCat&&bulkVTxType==="standard"&&!bulkVName.trim())?0.5:1}}>
+                      setVendorSelSet(new Set()); setBulkVCat(""); setBulkVSub(""); setBulkVTxType("standard"); setBulkVName(""); setBulkVNameText("");
+                    }} disabled={!bulkVCat&&bulkVTxType==="standard"&&!(bulkVName==="__new__"?bulkVNameText.trim():bulkVName)} style={{...btn((!bulkVCat&&bulkVTxType==="standard"&&!(bulkVName==="__new__"?bulkVNameText.trim():bulkVName))?C.s3:C.accent,(!bulkVCat&&bulkVTxType==="standard"&&!(bulkVName==="__new__"?bulkVNameText.trim():bulkVName))?C.dim:"#fff","none",12,"8px 0"),flex:1,opacity:(!bulkVCat&&bulkVTxType==="standard"&&!(bulkVName==="__new__"?bulkVNameText.trim():bulkVName))?0.5:1}}>
                       ✓ Apply to {vendorSelSet.size}
                     </button>
                     <button onClick={()=>setBulkDelConfirm(true)} style={{...btn("rgba(192,57,43,0.1)",C.danger,`1px solid rgba(192,57,43,0.3)`,12,"8px 12px"),fontWeight:700,flexShrink:0}}>
@@ -7889,7 +7898,7 @@ function ScanDataPanel({onImport, onClose, taxonomy, vendorMap, financials}) {
         var xlsRec={date:new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"}),mode:"spreadsheet",txCount:txs.length,inputTokens:0,outputTokens:0,costGBP:0};
         storeSave(GEMINI_USAGE_KEY,(storeLoad(GEMINI_USAGE_KEY)||[]).concat([xlsRec]));
       }
-      setPreview(txs);
+      setPreview(txs.map(function(t){ return t.vendor&&t.vendor.trim()?t:{...t,vendor:inferVendor(t.description||"")}; }));
       setStatus("done");
     } catch(e) { setErr(e.message); setStatus("error"); }
   }

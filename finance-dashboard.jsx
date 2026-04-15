@@ -1351,6 +1351,7 @@ function ManageModal({taxonomy,setTaxonomy,vendorMap,setVendorMap,vendorList,set
           const [newVendorTxType,setNewVendorTxType]=React.useState("standard");
           const [vNoCatOnly,setVNoCatOnly]=React.useState(false);
           const [editingVendorIdx,setEditingVendorIdx]=React.useState(null); // index in vendorList
+          const [editVendorName,setEditVendorName]=React.useState("");
           const [editVendorCat,setEditVendorCat]=React.useState("");
           const [editVendorSub,setEditVendorSub]=React.useState("");
           const [editVendorTxType,setEditVendorTxType]=React.useState("standard");
@@ -1382,7 +1383,13 @@ function ManageModal({taxonomy,setTaxonomy,vendorMap,setVendorMap,vendorList,set
           }
           function saveVendorEdit(idx) {
             const v=allVendors[idx];
-            setVendorList(prev=>(prev||[]).map(x=>x.name===v.name?{...x,category:editVendorCat,subcategory:editVendorSub,txType:editVendorTxType||"standard"}:x));
+            const newName=editVendorName.trim()||v.name;
+            const nameChanged=newName!==v.name;
+            setVendorList(prev=>(prev||[]).map(x=>x.name===v.name?{...x,name:newName,category:editVendorCat,subcategory:editVendorSub,txType:editVendorTxType||"standard"}:x));
+            // If name changed, update tx.vendor on all transactions that had the old name
+            if(nameChanged) {
+              setRawTxs(prev=>prev.map(t=>t.vendor===v.name?{...t,vendor:newName}:t));
+            }
             // Also update vendorMap entries that match this vendor name
             setVendorMap(prev=>{
               const u={...prev};
@@ -1514,7 +1521,7 @@ function ManageModal({taxonomy,setTaxonomy,vendorMap,setVendorMap,vendorList,set
                       </div>
                     ):isEdit?(
                       <div>
-                        <div style={{fontSize:13,fontWeight:600,color:C.text,marginBottom:8}}>{v.name}</div>
+                        <input value={editVendorName} onChange={e=>setEditVendorName(e.target.value)} placeholder="Vendor name" style={{...inp({padding:"5px 8px",fontSize:13}),width:"100%",boxSizing:"border-box",fontWeight:600,marginBottom:8}}/>
                         <div style={{display:"flex",gap:8,marginBottom:8}}>
                           <select value={editVendorCat} onChange={e=>{setEditVendorCat(e.target.value);setEditVendorSub("");}} style={{...inp({padding:"5px 8px",fontSize:12}),flex:1,appearance:"none"}}>
                             <option value="">— No category —</option>
@@ -1548,7 +1555,7 @@ function ManageModal({taxonomy,setTaxonomy,vendorMap,setVendorMap,vendorList,set
                           </div>
                         </div>
                         {saved&&<span style={{fontSize:11,color:C.accent,fontWeight:700}}>✓ Saved</span>}
-                        <button onClick={()=>{setEditingVendorIdx(i);setEditVendorCat(v.category||"");setEditVendorSub(v.subcategory||"");setEditVendorTxType(v.txType||"standard");}} style={btn(C.s2,C.muted,`1px solid ${C.border}`,11,"4px 9px")}>✏️</button>
+                        <button onClick={()=>{setEditingVendorIdx(i);setEditVendorName(v.name);setEditVendorCat(v.category||"");setEditVendorSub(v.subcategory||"");setEditVendorTxType(v.txType||"standard");}} style={btn(C.s2,C.muted,`1px solid ${C.border}`,11,"4px 9px")}>✏️</button>
                         <button onClick={()=>setConfirmDelVendor(i)} style={{...btn("rgba(192,57,43,0.1)",C.danger,`1px solid rgba(192,57,43,0.3)`,11,"4px 9px"),fontWeight:700}}>🗑</button>
                       </div>
                     )}
@@ -1802,11 +1809,24 @@ function BulkEditModal({selected,transactions,taxonomy,accounts,vendorList,onSav
         {/* Vendor */}
         <div style={{marginBottom:18}}>
           <div style={{fontSize:11,fontFamily:"monospace",color:C.dim,textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:8}}>Vendor</div>
-          <select value={bulkVendor} onChange={e=>setBulkVendor(e.target.value)} style={{...inp(),appearance:"none",width:"100%",fontSize:14}}>
-            <option value="_keep">— Keep existing —</option>
-            <option value="">— Clear vendor —</option>
-            {(vendorList||[]).slice().sort((a,b)=>a.name.localeCompare(b.name)).map(v=><option key={v.name} value={v.name}>{v.name}</option>)}
-          </select>
+          <div style={{display:"flex",gap:6,marginBottom:6}}>
+            <button onClick={()=>setBulkVendor("_keep")} style={{padding:"6px 12px",borderRadius:8,border:`1px solid ${bulkVendor==="_keep"?C.accent:C.border}`,background:bulkVendor==="_keep"?"rgba(62,180,137,0.08)":"transparent",color:bulkVendor==="_keep"?C.accent:C.dim,fontSize:12,cursor:"pointer",fontFamily:"inherit",fontWeight:bulkVendor==="_keep"?700:400}}>Keep</button>
+            <button onClick={()=>setBulkVendor("")} style={{padding:"6px 12px",borderRadius:8,border:`1px solid ${bulkVendor===""?C.danger:C.border}`,background:bulkVendor===""?"rgba(192,57,43,0.08)":"transparent",color:bulkVendor===""?C.danger:C.dim,fontSize:12,cursor:"pointer",fontFamily:"inherit",fontWeight:bulkVendor===""?700:400}}>Clear</button>
+          </div>
+          {bulkVendor!=="_keep"&&(
+            <div style={{position:"relative"}}>
+              <input
+                value={bulkVendor}
+                onChange={e=>setBulkVendor(e.target.value)}
+                list="bulk-vendor-list"
+                placeholder="Type or pick a vendor…"
+                style={{...inp(),width:"100%",boxSizing:"border-box",fontSize:14}}
+              />
+              <datalist id="bulk-vendor-list">
+                {(vendorList||[]).slice().sort((a,b)=>a.name.localeCompare(b.name)).map(v=><option key={v.name} value={v.name}/>)}
+              </datalist>
+            </div>
+          )}
         </div>
 
         {/* Cost Type */}
@@ -8751,9 +8771,27 @@ function App() {
       setVendorMap(v=>{ const n={...v}; delete n[k]; return n; });
     }
     setModal(null); setRemapTx(null);
+    // If a new vendor name was set, add it to vendorList if not already there
+    if(newVendor && typeof newVendor==="string" && newVendor.trim()) {
+      const vn=newVendor.trim();
+      setVendorList(prev=>{
+        const existing=prev||[];
+        if(existing.some(x=>x.name.toLowerCase()===vn.toLowerCase())) return existing;
+        return [...existing,{name:vn,category:"",subcategory:"",txType:"standard"}];
+      });
+    }
   }
 
   function handleBulkSave(cat,sub,txType,selected,bulkAccountId,bulkVendor) {
+    // If a new vendor name was typed, add to vendorList if not already present
+    if(bulkVendor && bulkVendor!=="_keep" && bulkVendor.trim()) {
+      const vn=bulkVendor.trim();
+      setVendorList(prev=>{
+        const existing=prev||[];
+        if(existing.some(x=>x.name.toLowerCase()===vn.toLowerCase())) return existing;
+        return [...existing,{name:vn,category:"",subcategory:"",txType:"standard"}];
+      });
+    }
     setRawTxs(prev=>prev.map(t=>{
       const key=t.date+"||"+t.description+"||"+t.amount;
       if(!selected.has(key)) return t;

@@ -1363,6 +1363,7 @@ function ManageModal({taxonomy,setTaxonomy,vendorMap,setVendorMap,vendorList,set
           const [bulkVCat,setBulkVCat]=React.useState("");
           const [bulkVSub,setBulkVSub]=React.useState("");
           const [bulkVTxType,setBulkVTxType]=React.useState("standard");
+          const [bulkVName,setBulkVName]=React.useState(""); // rename selected vendors to this name
           const [bulkDelConfirm,setBulkDelConfirm]=React.useState(false);
 
           const allVendors=(vendorList||[]).slice().sort((a,b)=>vendorMgrSort==="za"?b.name.localeCompare(a.name):a.name.localeCompare(b.name));
@@ -1428,6 +1429,10 @@ function ManageModal({taxonomy,setTaxonomy,vendorMap,setVendorMap,vendorList,set
             {vendorSelSet.size>0&&(
               <div style={{background:"rgba(42,157,111,0.07)",border:`1px solid ${C.accent}`,borderRadius:12,padding:"12px 14px",marginBottom:10}}>
                 <div style={{fontSize:11,fontWeight:700,color:C.accent,marginBottom:10,textTransform:"uppercase",letterSpacing:"0.05em"}}>Bulk edit — {vendorSelSet.size} vendor{vendorSelSet.size!==1?"s":""}</div>
+                <div style={{marginBottom:8}}>
+                  <div style={{fontSize:11,color:C.dim,marginBottom:4}}>Rename to (optional — merges selected into one)</div>
+                  <input value={bulkVName} onChange={e=>setBulkVName(e.target.value)} placeholder="New vendor name…" style={{...inp({padding:"5px 8px",fontSize:12}),width:"100%",boxSizing:"border-box"}}/>
+                </div>
                 <div style={{display:"flex",gap:8,marginBottom:8}}>
                   <select value={bulkVCat} onChange={e=>{setBulkVCat(e.target.value);setBulkVSub("");}} style={{...inp({padding:"5px 8px",fontSize:12}),flex:1,appearance:"none"}}>
                     <option value="">— Keep category —</option>
@@ -1456,15 +1461,34 @@ function ManageModal({taxonomy,setTaxonomy,vendorMap,setVendorMap,vendorList,set
                 ):(
                   <div style={{display:"flex",gap:8}}>
                     <button onClick={()=>{
-                      if(!bulkVCat&&bulkVTxType==="standard") return;
-                      setVendorList(prev=>(prev||[]).map(v=>{
-                        if(!vendorSelSet.has(v.name)) return v;
-                        const cat=bulkVCat==="__clear__"?"":bulkVCat||v.category;
-                        const sub=bulkVCat==="__clear__"?"":bulkVCat?bulkVSub:v.subcategory;
-                        return {...v,category:cat,subcategory:sub,txType:bulkVTxType||v.txType};
-                      }));
-                      setVendorSelSet(new Set()); setBulkVCat(""); setBulkVSub(""); setBulkVTxType("standard");
-                    }} disabled={!bulkVCat&&bulkVTxType==="standard"} style={{...btn((!bulkVCat&&bulkVTxType==="standard")?C.s3:C.accent,(!bulkVCat&&bulkVTxType==="standard")?C.dim:"#fff","none",12,"8px 0"),flex:1,opacity:(!bulkVCat&&bulkVTxType==="standard")?0.5:1}}>
+                      const hasNameChange=bulkVName.trim()!=="";
+                      if(!bulkVCat&&bulkVTxType==="standard"&&!hasNameChange) return;
+                      const newName=bulkVName.trim();
+                      setVendorList(prev=>{
+                        const selectedNames=vendorSelSet;
+                        if(hasNameChange) {
+                          const others=(prev||[]).filter(v=>!selectedNames.has(v.name));
+                          const existing=others.find(v=>v.name.toLowerCase()===newName.toLowerCase());
+                          const base=(prev||[]).find(v=>selectedNames.has(v.name));
+                          const cat=bulkVCat==="__clear__"?"":bulkVCat||(existing||base||{}).category||"";
+                          const sub=bulkVCat==="__clear__"?"":bulkVCat?bulkVSub:(existing||base||{}).subcategory||"";
+                          const txType2=bulkVTxType||"standard";
+                          if(existing) return others.map(v=>v.name.toLowerCase()===newName.toLowerCase()?{...v,category:cat,subcategory:sub,txType:txType2}:v);
+                          return [...others,{name:newName,category:cat,subcategory:sub,txType:txType2}];
+                        }
+                        return (prev||[]).map(v=>{
+                          if(!selectedNames.has(v.name)) return v;
+                          const cat=bulkVCat==="__clear__"?"":bulkVCat||v.category;
+                          const sub=bulkVCat==="__clear__"?"":bulkVCat?bulkVSub:v.subcategory;
+                          return {...v,category:cat,subcategory:sub,txType:bulkVTxType||v.txType};
+                        });
+                      });
+                      if(hasNameChange) {
+                        const selectedNames=new Set(vendorSelSet);
+                        setRawTxs(prev=>prev.map(t=>selectedNames.has(t.vendor)?{...t,vendor:newName}:t));
+                      }
+                      setVendorSelSet(new Set()); setBulkVCat(""); setBulkVSub(""); setBulkVTxType("standard"); setBulkVName("");
+                    }} disabled={!bulkVCat&&bulkVTxType==="standard"&&!bulkVName.trim()} style={{...btn((!bulkVCat&&bulkVTxType==="standard"&&!bulkVName.trim())?C.s3:C.accent,(!bulkVCat&&bulkVTxType==="standard"&&!bulkVName.trim())?C.dim:"#fff","none",12,"8px 0"),flex:1,opacity:(!bulkVCat&&bulkVTxType==="standard"&&!bulkVName.trim())?0.5:1}}>
                       ✓ Apply to {vendorSelSet.size}
                     </button>
                     <button onClick={()=>setBulkDelConfirm(true)} style={{...btn("rgba(192,57,43,0.1)",C.danger,`1px solid rgba(192,57,43,0.3)`,12,"8px 12px"),fontWeight:700,flexShrink:0}}>
@@ -1726,12 +1750,16 @@ function ManageModal({taxonomy,setTaxonomy,vendorMap,setVendorMap,vendorList,set
 }
 
 // ─── Remap Modal (single tx or vendor-wide, all 3 types) ──────────────────────
-function RemapModal({tx,taxonomy,accounts,onSave,onClose}) {
+function RemapModal({tx,taxonomy,accounts,vendorList,onSave,onClose}) {
   const [cat,setCat]=useState(tx.category);
   const [sub,setSub]=useState(tx.subcategory);
   const [txType,setTxType]=useState(getTxType(tx));
   const [accountId,setAccountId]=useState(tx.accountId||"");
   const [vendor,setVendor]=useState(tx.vendor||"");
+  const [vendorMode,setVendorMode]=useState(tx.vendor?"pick":"pick"); // "pick" | "new"
+  const sortedVendors=(vendorList||[]).slice().sort((a,b)=>a.name.localeCompare(b.name));
+  const [newVendorText,setNewVendorText]=useState("");
+  const effectiveVendor=vendorMode==="new"?newVendorText.trim():vendor;
   return (
     <div style={{position:"fixed",inset:0,background:"rgba(13,15,14,0.96)",zIndex:600,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
       <div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:20,padding:28,maxWidth:420,width:"100%"}}>
@@ -1747,7 +1775,19 @@ function RemapModal({tx,taxonomy,accounts,onSave,onClose}) {
           </select>
         </LabelRow>
         <LabelRow label="Vendor">
-          <input value={vendor} onChange={e=>setVendor(e.target.value)} placeholder="e.g. Amazon, Carrefour…" style={{...inp(),width:"100%",boxSizing:"border-box"}}/>
+          <div style={{display:"flex",flexDirection:"column",gap:6,width:"100%"}}>
+            <select value={vendorMode==="new"?"__new__":vendor} onChange={e=>{
+              if(e.target.value==="__new__"){setVendorMode("new");setNewVendorText("");}
+              else{setVendorMode("pick");setVendor(e.target.value);}
+            }} style={{...inp(),appearance:"none",width:"100%"}}>
+              <option value="">— No vendor —</option>
+              {sortedVendors.map(v=><option key={v.name} value={v.name}>{v.name}</option>)}
+              <option value="__new__">＋ Type new vendor…</option>
+            </select>
+            {vendorMode==="new"&&(
+              <input value={newVendorText} onChange={e=>setNewVendorText(e.target.value)} placeholder="New vendor name…" style={{...inp(),width:"100%",boxSizing:"border-box"}} autoFocus/>
+            )}
+          </div>
         </LabelRow>
         <LabelRow label="Cost Type">
           <div style={{display:"flex",gap:6}}>
@@ -1769,7 +1809,7 @@ function RemapModal({tx,taxonomy,accounts,onSave,onClose}) {
           </select>
         </LabelRow>
         <div style={{display:"flex",gap:10,marginTop:4}}>
-          <button onClick={()=>onSave(cat,sub,txType,"this",accountId||null,vendor.trim()||null)} style={{...btn(C.accent,"#fff","none",14,"12px 0"),flex:1}}>Save</button>
+          <button onClick={()=>onSave(cat,sub,txType,"this",accountId||null,effectiveVendor||null)} style={{...btn(C.accent,"#fff","none",14,"12px 0"),flex:1}}>Save</button>
           <button onClick={onClose} style={btn(C.s2,C.muted,`1px solid ${C.border}`,13,"12px 16px")}>Cancel</button>
         </div>
       </div>
@@ -1784,9 +1824,11 @@ function BulkEditModal({selected,transactions,taxonomy,accounts,vendorList,onSav
   const [sub,setSub]=useState("");
   const [txType,setTxType]=useState("");
   const [bulkAccountId,setBulkAccountId]=useState("_keep");
-  const [bulkVendor,setBulkVendor]=useState("_keep"); // "_keep" | "" (clear) | vendor name
+  const [bulkVendor,setBulkVendor]=useState("_keep"); // "_keep" | "" (clear) | vendor name | "__new__"
+  const [bulkVendorNew,setBulkVendorNew]=useState("");
 
-  const hasChanges = cat||sub||txType||(bulkAccountId!=="_keep")||(bulkVendor!=="_keep");
+  const effectiveBulkVendor=bulkVendor==="__new__"?(bulkVendorNew.trim()||"_keep"):bulkVendor;
+  const hasChanges = cat||sub||txType||(bulkAccountId!=="_keep")||(effectiveBulkVendor!=="_keep");
 
   return (
     <div style={{position:"fixed",inset:0,background:"rgba(13,15,14,0.96)",zIndex:600,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
@@ -1809,23 +1851,20 @@ function BulkEditModal({selected,transactions,taxonomy,accounts,vendorList,onSav
         {/* Vendor */}
         <div style={{marginBottom:18}}>
           <div style={{fontSize:11,fontFamily:"monospace",color:C.dim,textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:8}}>Vendor</div>
-          <div style={{display:"flex",gap:6,marginBottom:6}}>
-            <button onClick={()=>setBulkVendor("_keep")} style={{padding:"6px 12px",borderRadius:8,border:`1px solid ${bulkVendor==="_keep"?C.accent:C.border}`,background:bulkVendor==="_keep"?"rgba(62,180,137,0.08)":"transparent",color:bulkVendor==="_keep"?C.accent:C.dim,fontSize:12,cursor:"pointer",fontFamily:"inherit",fontWeight:bulkVendor==="_keep"?700:400}}>Keep</button>
-            <button onClick={()=>setBulkVendor("")} style={{padding:"6px 12px",borderRadius:8,border:`1px solid ${bulkVendor===""?C.danger:C.border}`,background:bulkVendor===""?"rgba(192,57,43,0.08)":"transparent",color:bulkVendor===""?C.danger:C.dim,fontSize:12,cursor:"pointer",fontFamily:"inherit",fontWeight:bulkVendor===""?700:400}}>Clear</button>
-          </div>
-          {bulkVendor!=="_keep"&&(
-            <div style={{position:"relative"}}>
-              <input
-                value={bulkVendor}
-                onChange={e=>setBulkVendor(e.target.value)}
-                list="bulk-vendor-list"
-                placeholder="Type or pick a vendor…"
-                style={{...inp(),width:"100%",boxSizing:"border-box",fontSize:14}}
-              />
-              <datalist id="bulk-vendor-list">
-                {(vendorList||[]).slice().sort((a,b)=>a.name.localeCompare(b.name)).map(v=><option key={v.name} value={v.name}/>)}
-              </datalist>
-            </div>
+          <select value={bulkVendor} onChange={e=>setBulkVendor(e.target.value)} style={{...inp(),appearance:"none",width:"100%",fontSize:14}}>
+            <option value="_keep">— Keep existing —</option>
+            <option value="">— Clear vendor —</option>
+            {(vendorList||[]).slice().sort((a,b)=>a.name.localeCompare(b.name)).map(v=><option key={v.name} value={v.name}>{v.name}</option>)}
+            <option value="__new__">＋ Type new vendor…</option>
+          </select>
+          {bulkVendor==="__new__"&&(
+            <input
+              value={bulkVendorNew||""}
+              onChange={e=>setBulkVendorNew(e.target.value)}
+              placeholder="New vendor name…"
+              style={{...inp(),width:"100%",boxSizing:"border-box",fontSize:14,marginTop:8}}
+              autoFocus
+            />
           )}
         </div>
 
@@ -1875,7 +1914,7 @@ function BulkEditModal({selected,transactions,taxonomy,accounts,vendorList,onSav
 
         <div style={{display:"flex",gap:10}}>
           <button
-            onClick={()=>onSave(cat,sub,txType,selected,bulkAccountId,bulkVendor)}
+            onClick={()=>onSave(cat,sub,txType,selected,bulkAccountId,effectiveBulkVendor)}
             disabled={!hasChanges}
             style={{...btn(hasChanges?C.accent:C.s2,hasChanges?"#fff":C.dim,hasChanges?"none":`1px solid ${C.border}`,14,"13px 0"),flex:1,opacity:hasChanges?1:0.5}}
           >
@@ -1975,7 +2014,7 @@ function ImportModal({onImport,onClose}) {
   function removeImage(i){ setImages(prev=>prev.filter((_,idx)=>idx!==i)); }
 
   async function callAPI(imgs, txt) {
-    const systemPrompt="You are a bank statement parser. Extract ALL transactions including credits. Return ONLY a valid JSON array with no markdown, no explanation. Each object: {\"date\":\"YYYY-MM-DD\",\"description\":\"clean merchant name\",\"amount\":number,\"isCredit\":boolean}. Set isCredit:true for credits, cashback, refunds, incoming transfers. Set isCredit:false for debits/expenses. Strip prefixes like IAP-, NFC-, AP-PAY-, card numbers, and city/country suffixes like 'Dubai AE'. CRITICAL for amounts: use ONLY the individual transaction amount column (debit or credit column) — NEVER use the running balance, closing balance, or total columns. The transaction amount is typically a smaller column near the description; the running balance is a larger cumulative number on the right — ignore it. If a row shows both a debit amount and a running balance, use the debit amount only. CRITICAL for dates: always use the TRANSACTION DATE (leftmost column). Convert all date formats to YYYY-MM-DD: '28-Jan-26' = 2026-01-28, '28/01/26' = 2026-01-28, '28/01/2026' = 2026-01-28. Two-digit years: 24=2024, 25=2025, 26=2026. For DD/MM/YYYY the first number is always DAY, second is MONTH. Never swap day and month. IMPORTANT: always output complete valid JSON — never truncate the array.";
+    const systemPrompt="You are a bank statement parser. Extract ALL transactions including credits. Return ONLY a valid JSON array with no markdown, no explanation. Each object: {\"date\":\"YYYY-MM-DD\",\"description\":\"original transaction text\",\"vendor\":\"clean merchant name e.g. Amazon, Carrefour, Netflix\",\"amount\":number,\"isCredit\":boolean}. For vendor: extract the clean merchant/payee name from the description — strip bank prefixes (IAP-, NFC-, AP-PAY-), card numbers, city/country suffixes like 'Dubai AE', and reference numbers. If no clear merchant name, use an empty string. Set isCredit:true for credits, cashback, refunds, incoming transfers. Set isCredit:false for debits/expenses. CRITICAL for amounts: use ONLY the individual transaction amount column (debit or credit column) — NEVER use the running balance, closing balance, or total columns. The transaction amount is typically a smaller column near the description; the running balance is a larger cumulative number on the right — ignore it. If a row shows both a debit amount and a running balance, use the debit amount only. CRITICAL for dates: always use the TRANSACTION DATE (leftmost column). Convert all date formats to YYYY-MM-DD: '28-Jan-26' = 2026-01-28, '28/01/26' = 2026-01-28, '28/01/2026' = 2026-01-28. Two-digit years: 24=2024, 25=2025, 26=2026. For DD/MM/YYYY the first number is always DAY, second is MONTH. Never swap day and month. IMPORTANT: always output complete valid JSON — never truncate the array.";
     const userContent=[];
     imgs.forEach(img=>userContent.push({type:"image",source:{type:"base64",media_type:img.mediaType,data:img.base64}}));
     userContent.push({type:"text",text:imgs.length?"Parse all transactions from the screenshot(s)"+(txt?" and this text:\n\n"+txt:"."):"Parse this bank statement:\n\n"+txt});
@@ -8968,7 +9007,7 @@ function App() {
       {modal==="import"   && <ImportModal onImport={handleImport} onClose={()=>setModal(null)}/>}
       {modal==="manual"   && <ManualEntryModal onImport={handleImport} taxonomy={taxonomy} vendorMap={vendorMap} vendorList={vendorList} financials={financials} setFinancials={setFinancials} onClose={()=>{setModal(null);setManualFromHome(false);}} initialMode={manualInitMode} singleSection={manualFromHome}/>}
       {modal==="manage"   && <ManageModal taxonomy={taxonomy} setTaxonomy={setTaxonomy} vendorMap={vendorMap} setVendorMap={setVendorMap} vendorList={vendorList} setVendorList={setVendorList} rawTxs={rawTxs} setRawTxs={setRawTxs} financials={financials} setFinancials={setFinancials} budgets={budgets} initialSection={manageInitSection} singleSection={true} onClose={()=>setModal(null)}/>}
-      {modal==="remap"    && remapTx && <RemapModal tx={remapTx} taxonomy={taxonomy} accounts={(financials&&financials.accounts)||[]} onSave={handleRemap} onClose={()=>{setModal(null);setRemapTx(null);}}/>}
+      {modal==="remap"    && remapTx && <RemapModal tx={remapTx} taxonomy={taxonomy} accounts={(financials&&financials.accounts)||[]} vendorList={vendorList} onSave={handleRemap} onClose={()=>{setModal(null);setRemapTx(null);}}/>}
       {modal==="export"   && <ExportModal transactions={transactions} taxonomy={taxonomy} currency={currency} onClose={()=>setModal(null)}/>}
       {modal==="settings" && <SettingsModal taxonomy={taxonomy} vendorMap={vendorMap} rawTxs={rawTxs} currency={currency} onImport={handleSettingsImport} onClose={()=>setModal(null)}/>}
 

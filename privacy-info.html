@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Home Financials — Privacy & Data Info</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0;}
+    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;background:#ecf1eb;color:#0f1624;min-height:100vh;padding:0 0 60px;}
+    .header{background:linear-gradient(135deg,#1a6a3a 0%,#2a9d6f 100%);padding:28px 24px 24px;text-align:center;}
+    .header img{height:52px;width:auto;margin-bottom:12px;display:block;margin-left:auto;margin-right:auto;}
+    .header h1{color:#fff;font-size:20px;font-weight:800;letter-spacing:-0.3px;}
+    .header p{color:rgba(255,255,255,0.75);font-size:13px;margin-top:6px;}
+    .container{max-width:640px;margin:0 auto;padding:24px 16px;}
+    .intro{background:#fff;border-radius:16px;padding:20px;margin-bottom:20px;border:1px solid #cdd1db;box-shadow:0 1px 4px rgba(0,0,0,0.05);}
+    .intro p{font-size:14px;line-height:1.65;color:#2d3748;}
+    .intro strong{color:#0f1624;}
+    .section{background:#fff;border-radius:16px;padding:20px;margin-bottom:16px;border:1px solid #cdd1db;box-shadow:0 1px 4px rgba(0,0,0,0.05);}
+    .section-header{display:flex;align-items:center;gap:12px;margin-bottom:14px;}
+    .section-icon{font-size:28px;flex-shrink:0;}
+    .section-title{font-size:16px;font-weight:800;color:#0f1624;}
+    .section-subtitle{font-size:12px;color:#7a8699;margin-top:2px;}
+    .badge{display:inline-block;font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;letter-spacing:0.04em;margin-left:6px;vertical-align:middle;}
+    .badge-safe{background:rgba(42,157,111,0.12);color:#1a7a3a;}
+    .badge-caution{background:rgba(217,64,64,0.10);color:#c03030;}
+    .flow{background:#f4f6f3;border-radius:10px;padding:14px 16px;margin:12px 0;border:1px solid #e2e8e0;}
+    .flow-step{display:flex;align-items:flex-start;gap:10px;padding:6px 0;font-size:13px;line-height:1.5;color:#2d3748;}
+    .flow-step:not(:last-child){border-bottom:1px solid #e2e8e0;}
+    .flow-num{background:#2a9d6f;color:#fff;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;flex-shrink:0;margin-top:1px;}
+    .flow-num.warn{background:#d4860a;}
+    .what-goes{margin:12px 0;}
+    .what-goes-row{display:flex;align-items:baseline;gap:8px;padding:5px 0;font-size:13px;border-bottom:1px solid #f0f2f0;}
+    .what-goes-row:last-child{border-bottom:none;}
+    .goes-label{color:#7a8699;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;min-width:80px;flex-shrink:0;}
+    .goes-val{color:#0f1624;flex:1;line-height:1.45;}
+    .goes-val.safe{color:#1a7a3a;}
+    .goes-val.danger{color:#c03030;}
+    .info-box{border-radius:10px;padding:12px 14px;font-size:13px;line-height:1.55;margin:12px 0;}
+    .info-box.green{background:rgba(42,157,111,0.08);border:1px solid rgba(42,157,111,0.25);color:#1a5a30;}
+    .info-box.amber{background:rgba(213,134,10,0.08);border:1px solid rgba(213,134,10,0.25);color:#7a4a00;}
+    .info-box.red{background:rgba(217,64,64,0.08);border:1px solid rgba(217,64,64,0.25);color:#8a1010;}
+    .gemini-box{background:linear-gradient(135deg,rgba(66,133,244,0.06),rgba(52,168,83,0.06));border:1px solid rgba(66,133,244,0.18);border-radius:12px;padding:16px;margin:16px 0;}
+    .gemini-box h3{font-size:13px;font-weight:700;color:#1a2a4a;margin-bottom:8px;}
+    .gemini-box p{font-size:12.5px;color:#2d3748;line-height:1.6;margin-bottom:8px;}
+    .gemini-box p:last-child{margin-bottom:0;}
+    .gemini-box a{color:#2a5298;text-decoration:none;font-weight:600;}
+    .policy-note{background:rgba(213,134,10,0.06);border:1px solid rgba(213,134,10,0.20);border-radius:8px;padding:10px 13px;font-size:12px;color:#7a4a00;line-height:1.55;margin-top:10px;}
+    .policy-note a{color:#7a4a00;font-weight:700;}
+    .scrub-list{list-style:none;padding:0;margin:8px 0;}
+    .scrub-list li{font-size:12.5px;color:#2d3748;padding:3px 0;display:flex;align-items:center;gap:7px;line-height:1.4;}
+    .scrub-list li::before{content:"✓";color:#2a9d6f;font-weight:800;font-size:11px;flex-shrink:0;}
+    .scrub-list li.no::before{content:"✗";color:#d94040;}
+    .risk-list{list-style:none;padding:0;margin:10px 0;}
+    .risk-list li{font-size:13px;color:#2d3748;padding:8px 0;display:flex;align-items:flex-start;gap:10px;line-height:1.55;border-bottom:1px solid #f0f2f0;}
+    .risk-list li:last-child{border-bottom:none;}
+    .risk-icon{font-size:15px;flex-shrink:0;margin-top:1px;}
+    .footer{text-align:center;padding:20px 16px 0;font-size:12px;color:#7a8699;}
+    .footer a{color:#2a9d6f;text-decoration:none;font-weight:600;}
+    h2{font-size:17px;font-weight:800;color:#0f1624;margin-bottom:10px;}
+    @media(max-width:480px){
+      .header h1{font-size:18px;}
+      .section{padding:16px;}
+      .flow-step{font-size:12.5px;}
+    }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <img src="Home_financials_LOGO_White_Back.png" alt="Home Financials"/>
+  <h1>Privacy &amp; Data Information</h1>
+  <p>What happens to your data when you import bank statements</p>
+</div>
+
+<div class="container">
+
+  <div class="intro">
+    <p>Home Financials uses <strong>Google Gemini AI</strong> to read and extract transactions from your bank statements and screenshots. This page explains exactly what data is sent, when, what protections are in place, and what the real-world risks are — so you can make an informed choice.</p>
+  </div>
+
+  <!-- WHAT IS GEMINI -->
+  <div class="gemini-box">
+    <h3>🤖 What is Google Gemini?</h3>
+    <p>Gemini is Google's AI model, similar to ChatGPT. When you import a statement, your app sends the document to Gemini's API via our Google Cloud processing server. Gemini reads the content and returns a list of transactions.</p>
+    <p>According to <a href="https://ai.google.dev/gemini-api/terms" target="_blank">Google's current API terms</a>, data sent via the API is not used to train Gemini's AI models. However, Google's policies could change in the future — and even under current terms, other risks exist, which are explained in the next section.</p>
+    <div class="policy-note">⚠️ <strong>Policy change risk:</strong> This app cannot automatically detect if Google updates its terms. We recommend checking <a href="https://ai.google.dev/gemini-api/terms" target="_blank">Google's API terms</a> periodically, especially before importing sensitive documents. The information on this page was last reviewed <strong>April 2026</strong>.</div>
+  </div>
+
+  <!-- WHY IS IT A RISK AT ALL -->
+  <div class="section">
+    <h2>Why is sending data to Gemini a risk — even if it does not train on it?</h2>
+    <p style="font-size:13px;color:#4a5568;line-height:1.6;margin-bottom:14px;">This is a fair question. Even if your data is not used to train an AI model, sending personal financial information to any external service carries real-world risks. Here is what could realistically happen:</p>
+
+    <ul class="risk-list">
+      <li>
+        <span class="risk-icon">🔓</span>
+        <div><strong>Data breach at Google's end.</strong> No company — including Google — is immune to security incidents. If Google's systems were ever compromised, your statement data, including transaction history and personal details, could be exposed to third parties.</div>
+      </li>
+      <li>
+        <span class="risk-icon">👁️</span>
+        <div><strong>Human review for safety purposes.</strong> Google may review API inputs to detect abuse, ensure safety, or improve service quality. Even if rare, this means your document could in principle be seen by a person at Google — not just processed by a machine.</div>
+      </li>
+      <li>
+        <span class="risk-icon">📋</span>
+        <div><strong>Temporary logging.</strong> API requests are typically logged for a period of time, even if not stored permanently. Your data exists in Google's systems for some time after the call, even if it is eventually deleted.</div>
+      </li>
+      <li>
+        <span class="risk-icon">🔄</span>
+        <div><strong>Policy changes.</strong> Google currently states they do not train on API data. But terms can change. If they do, this app would have no way of knowing immediately — and the approach to data submitted under previous terms may be affected.</div>
+      </li>
+      <li>
+        <span class="risk-icon">🌍</span>
+        <div><strong>Cross-border data transfer.</strong> Gemini processes data on Google's servers, which may be located outside the UAE or UK. Depending on where you live, sending financial data internationally may have implications under local data protection laws.</div>
+      </li>
+      <li>
+        <span class="risk-icon">🏦</span>
+        <div><strong>Financial data is highly sensitive.</strong> Bank statements are among the most sensitive documents you own. Even if the probability of any one of the above events is low, the consequences of exposure are high — which is why we flag these risks clearly rather than hiding them.</div>
+      </li>
+    </ul>
+
+    <div class="info-box amber">💡 The practical risk for most users is low. But it is real, and you deserve to know about it. The XLS spreadsheet import option avoids all of this entirely — nothing is sent externally.</div>
+  </div>
+
+  <!-- MODE 1: TEXT PDF -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-icon">📄</div>
+      <div>
+        <div class="section-title">PDF Statement — Text Mode <span class="badge badge-safe">LOWER RISK</span></div>
+        <div class="section-subtitle">Standard mode for most downloadable PDFs</div>
+      </div>
+    </div>
+
+    <div class="info-box green">Most bank PDFs downloaded from online banking work in this mode. Text is extracted by our Google Cloud processing server first, then sensitive values are removed (scrubbed) before anything is passed to Gemini.</div>
+
+    <div class="flow">
+      <div class="flow-step"><div class="flow-num">1</div><div>Your PDF is sent to our Google Cloud processing server — nothing goes to Gemini yet</div></div>
+      <div class="flow-step"><div class="flow-num">2</div><div>Text is extracted from the PDF</div></div>
+      <div class="flow-step"><div class="flow-num">3</div><div>Sensitive values are automatically removed (scrubbed) from the text</div></div>
+      <div class="flow-step"><div class="flow-num">4</div><div>The scrubbed text is sent to Gemini, which returns a transaction list</div></div>
+    </div>
+
+    <p style="font-size:13px;font-weight:700;color:#0f1624;margin:14px 0 8px;">What gets scrubbed (removed before Gemini sees it):</p>
+    <ul class="scrub-list">
+      <li>Full account numbers (8–13 digits)</li>
+      <li>IBAN numbers</li>
+      <li>Card numbers</li>
+      <li>Sort codes</li>
+      <li>Phone numbers</li>
+      <li>Email addresses</li>
+      <li>Emirates ID numbers</li>
+      <li>PO Box numbers</li>
+    </ul>
+
+    <p style="font-size:13px;font-weight:700;color:#0f1624;margin:14px 0 8px;">What is NOT scrubbed:</p>
+    <ul class="scrub-list">
+      <li class="no">Your full name (appears in statement header)</li>
+      <li class="no">Branch address (appears in statement header)</li>
+    </ul>
+
+    <div class="info-box amber">⚠️ Your name and branch address may appear in the text sent to Gemini. The risks described above still apply — but are reduced, because your most sensitive financial identifiers have been stripped out first.</div>
+  </div>
+
+  <!-- MODE 2: IMAGE PDF -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-icon">🖼️</div>
+      <div>
+        <div class="section-title">PDF Statement — Image Mode <span class="badge badge-caution">HIGHER RISK</span></div>
+        <div class="section-subtitle">Triggered when PDF cannot be read as text (scanned documents)</div>
+      </div>
+    </div>
+
+    <div class="info-box red">⚠️ This mode is triggered automatically when your PDF is a scanned image rather than a digital document. No scrubbing is possible — the full PDF is sent to Gemini exactly as-is.</div>
+
+    <div class="flow">
+      <div class="flow-step"><div class="flow-num warn">1</div><div>Your PDF is uploaded — text extraction is attempted but fails (image-only document)</div></div>
+      <div class="flow-step"><div class="flow-num warn">2</div><div>The raw PDF file is sent directly to Gemini — <strong>no scrubbing is possible</strong></div></div>
+      <div class="flow-step"><div class="flow-num warn">3</div><div>Gemini reads the scanned images and returns a transaction list</div></div>
+    </div>
+
+    <div class="what-goes">
+      <div class="what-goes-row"><span class="goes-label">Sent to Gemini</span><span class="goes-val danger">Everything visible in the PDF — your name, address, account numbers, balances, and all transaction details</span></div>
+      <div class="what-goes-row"><span class="goes-label">Scrubbing</span><span class="goes-val danger">None — not possible for image documents</span></div>
+      <div class="what-goes-row"><span class="goes-label">Alternative</span><span class="goes-val safe">Use a digital PDF from your bank's online portal, or export an XLS spreadsheet instead</span></div>
+    </div>
+
+    <p style="font-size:13px;font-weight:700;color:#0f1624;margin:14px 0 6px;">Why is this higher risk?</p>
+    <p style="font-size:13px;color:#4a5568;line-height:1.6;">All of the risks described above apply — but with your complete, unfiltered statement being sent. There is no scrubbing layer. If Google's systems were ever breached, or if a human reviewed your API call, they would see your full account details and transaction history.</p>
+
+    <div class="info-box amber">💡 Tip: Most banks offer a "Download Statement" option in online banking that produces a text-based digital PDF (lower risk mode). Scanned paper statements produce image PDFs. When in doubt, use the XLS export instead — it does not use Gemini at all.</div>
+  </div>
+
+  <!-- MODE 3: SCREENSHOT -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-icon">📸</div>
+      <div>
+        <div class="section-title">Screenshot Import <span class="badge badge-caution">HIGHER RISK</span></div>
+        <div class="section-subtitle">Photos or screenshots of your bank app or statements</div>
+      </div>
+    </div>
+
+    <div class="info-box red">⚠️ Screenshots are raw images. Everything visible in the photo is sent to Gemini — no scrubbing is possible for images.</div>
+
+    <div class="flow">
+      <div class="flow-step"><div class="flow-num warn">1</div><div>You select one or more screenshots from your device</div></div>
+      <div class="flow-step"><div class="flow-num warn">2</div><div>Each image is sent directly to Gemini — <strong>no scrubbing</strong></div></div>
+      <div class="flow-step"><div class="flow-num warn">3</div><div>Gemini reads the visible content and returns a transaction list</div></div>
+    </div>
+
+    <div class="what-goes">
+      <div class="what-goes-row"><span class="goes-label">Sent to Gemini</span><span class="goes-val danger">Everything visible in the screenshot — account numbers, balances, names, and any other on-screen information</span></div>
+      <div class="what-goes-row"><span class="goes-label">Scrubbing</span><span class="goes-val danger">None — not possible for images</span></div>
+      <div class="what-goes-row"><span class="goes-label">Alternative</span><span class="goes-val safe">Use a downloaded PDF or XLS spreadsheet from your bank's online portal</span></div>
+    </div>
+
+    <p style="font-size:13px;font-weight:700;color:#0f1624;margin:14px 0 6px;">Why is this higher risk?</p>
+    <p style="font-size:13px;color:#4a5568;line-height:1.6;">Screenshots typically show whatever is on your screen at the time — which may include your full account number, current balance, recent transactions, and your name. All of this goes to Gemini unfiltered. All of the risks described above apply in full.</p>
+  </div>
+
+  <!-- MODE 4: XLS -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-icon">📊</div>
+      <div>
+        <div class="section-title">XLS Spreadsheet Import <span class="badge badge-safe">NO AI INVOLVED</span></div>
+        <div class="section-subtitle">Excel or CSV files from your bank</div>
+      </div>
+    </div>
+
+    <div class="info-box green">✓ XLS/CSV import does not use Gemini at all. Your spreadsheet is processed entirely within the app — nothing is sent to any external service.</div>
+
+    <div class="what-goes">
+      <div class="what-goes-row"><span class="goes-label">Sent to Gemini</span><span class="goes-val safe">Nothing — Gemini is not used</span></div>
+      <div class="what-goes-row"><span class="goes-label">Processing</span><span class="goes-val safe">100% local — data stays on your device</span></div>
+      <div class="what-goes-row"><span class="goes-label">Risk</span><span class="goes-val safe">None from an external data perspective</span></div>
+    </div>
+
+    <div class="info-box green">💡 If you are concerned about any of the risks described on this page, XLS import is the safest option. Most banks offer an "Export to Excel" or "Download CSV" option in their online banking portal.</div>
+  </div>
+
+  <!-- GENERAL PRINCIPLES -->
+  <div class="section">
+    <h2>General principles</h2>
+
+    <div class="flow">
+      <div class="flow-step"><div class="flow-num">1</div><div><strong>No data stored by us:</strong> Home Financials does not operate its own database servers. Your transactions are saved to your own Firebase account (Google Cloud) — not accessible to anyone else.</div></div>
+      <div class="flow-step"><div class="flow-num">2</div><div><strong>Gemini API — current policy:</strong> According to Google's API terms as of April 2026, data sent via the API is not used to train AI models. We recommend <a href="https://ai.google.dev/gemini-api/terms" target="_blank" style="color:#2a9d6f;font-weight:600;">checking Google's current terms</a> periodically, as these may change without notice.</div></div>
+      <div class="flow-step"><div class="flow-num">3</div><div><strong>Your choice:</strong> You decide what to import and how. If you are not comfortable sending a document to Gemini, use XLS import or add transactions manually. The app works fully without Gemini.</div></div>
+      <div class="flow-step"><div class="flow-num">4</div><div><strong>Secure transit:</strong> All data is transmitted over HTTPS. The Gemini API key is stored securely in our Google Cloud processing server's environment — it is never exposed in the app code.</div></div>
+      <div class="flow-step"><div class="flow-num">5</div><div><strong>Staying up to date:</strong> This page was last reviewed in April 2026. If Google's policies change materially, we will aim to update this page. However, we are a personal app and cannot guarantee immediate updates. When in doubt, check Google's terms directly.</div></div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <p>Home Financials — personal finance app</p>
+    <p style="margin-top:6px;"><a href="/Home_Financials/">← Back to app</a></p>
+    <p style="margin-top:10px;font-size:11px;color:#aab0bb;">This page is for your information only. It is not a legal privacy policy. Last reviewed April 2026.</p>
+  </div>
+
+</div>
+</body>
+</html>

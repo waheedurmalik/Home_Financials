@@ -115,18 +115,18 @@ function enrich(tx, tax, vmap, kwmap) {
   const key=(tx.description||"").toLowerCase().trim();
   const vm=vmap[key];
   let cat, sub, txType;
-  if(vm) {
-    // Exact vendor map — highest priority
+  if(tx._manual) {
+    // Manually assigned — always highest priority, overrides vendorMap and keyword mappings
+    cat=tx.category; sub=tx.subcategory; txType=tx.txType||getTxType(tx);
+  } else if(vm) {
+    // Exact vendor map — second priority
     cat=vm.category; sub=vm.subcategory; txType=vm.txType;
   } else {
-    // Fuzzy keyword mapping — second priority
+    // Fuzzy keyword mapping — third priority
     const fm = kwmap ? fuzzyMatchMapping(tx.description, kwmap) : null;
     if(fm) {
       cat=fm.category; sub=fm.subcategory; txType=fm.txType;
       if(fm.vendor && !tx.vendor) tx={...tx,vendor:fm.vendor};
-    } else if(tx._manual) {
-      // Manually assigned — trust as-is
-      cat=tx.category; sub=tx.subcategory; txType=tx.txType||getTxType(tx);
     } else {
       // Auto-categorise: only trust tx.category if it actually exists in the taxonomy.
       // Gemini sometimes returns hallucinated or wrong categories — validate first.
@@ -632,8 +632,11 @@ function ReapplyMappingsModal({rawTxs, vendorMap, keywordMappings, onApply, onCl
           </div>
           {/* Controls row */}
           <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
-            <input value={search} onChange={function(e){setSearch(e.target.value);}} placeholder="Filter by description, category, vendor…"
-              style={{flex:1,minWidth:160,fontSize:12,padding:"6px 10px",border:"1px solid #cdd1db",borderRadius:8,outline:"none",fontFamily:"inherit"}}/>
+            <div style={{position:"relative",flex:1,minWidth:160}}>
+              <input value={search} onChange={function(e){setSearch(e.target.value);}} placeholder="Filter by description, category, vendor…"
+                style={{width:"100%",boxSizing:"border-box",fontSize:12,padding:search?"6px 28px 6px 10px":"6px 10px",border:"1px solid #cdd1db",borderRadius:8,outline:"none",fontFamily:"inherit"}}/>
+              {search&&<button onClick={function(){setSearch("");}} style={{position:"absolute",right:6,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",color:"#7a8699",fontSize:14,lineHeight:1,padding:2}}>✕</button>}
+            </div>
             <select value={sortBy} onChange={function(e){setSortBy(e.target.value);}} style={{fontSize:12,padding:"6px 8px",border:"1px solid #cdd1db",borderRadius:8,outline:"none",fontFamily:"inherit",background:"#fff"}}>
               {SORT_OPTS.map(function(o){ return <option key={o.v} value={o.v}>{o.l}</option>; })}
             </select>
@@ -2027,7 +2030,7 @@ function ManageModal({taxonomy,setTaxonomy,vendorMap,setVendorMap,vendorList,set
         {/* Section tabs — hidden when opened to a specific section from HomeTab */}
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
           {!singleSection&&<div style={{display:"flex",gap:2,background:C.s2,borderRadius:10,padding:3,flexWrap:"wrap"}}>
-            {[["categories","🏷️ Categories"],["vendors","🏪 Vendors"],["financial","💰 Financial Position"],["forecast","📈 Forecast"],["transactions","🔖 Tag Accounts"],["gemini","🤖 Gemini Usage"]].map(([s,l])=>(
+            {[["categories","🏷️ Categories"],["vendors","🏪 Vendors"],["financial","💰 Financial Position"],["forecast","📈 Forecast"],["gemini","🤖 Gemini Usage"]].map(([s,l])=>(
               <button key={s} onClick={()=>{setSection(s);setView("list");setVendorSel(new Set());setVendorSaved(false);setVendorTab("all");setNvAssign({});setNvSaved(null);}} style={{padding:"7px 14px",borderRadius:8,border:"none",background:section===s?C.surface:"transparent",color:section===s?C.text:C.muted,fontWeight:section===s?700:500,fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>{l}</button>
             ))}
           </div>}
@@ -2063,7 +2066,7 @@ function ManageModal({taxonomy,setTaxonomy,vendorMap,setVendorMap,vendorList,set
           const [bulkDelConfirm,setBulkDelConfirm]=React.useState(false);
 
           const allVendors=(vendorList||[]).slice().sort((a,b)=>vendorMgrSort==="za"?b.name.localeCompare(a.name):a.name.localeCompare(b.name));
-          const filtered=vNoCatOnly?allVendors.filter(v=>!v.category):allVendors;
+          const filtered=vNoCatOnly?allVendors.filter(v=>{if(v.category) return false; var vTxs=(rawTxs||[]).filter(function(t){return (t.vendor||t.description)===v.name&&t.category;}); return vTxs.length===0;}):allVendors;
           const searched=vendorSearch?filtered.filter(v=>v.name.toLowerCase().includes(vendorSearch.toLowerCase())):filtered;
           const allSearchedSelected=searched.length>0&&searched.every(v=>vendorSelSet.has(v.name));
 
@@ -2101,7 +2104,10 @@ function ManageModal({taxonomy,setTaxonomy,vendorMap,setVendorMap,vendorList,set
           <div>
             {/* Header row */}
             <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
-              <input value={vendorSearch} onChange={e=>setVendorSearch(e.target.value)} placeholder="Search vendors…" style={{...inp({padding:"7px 10px",fontSize:13}),flex:1}}/>
+              <div style={{position:"relative",flex:1}}>
+                <input value={vendorSearch} onChange={e=>setVendorSearch(e.target.value)} placeholder="Search vendors…" style={{...inp({padding:vendorSearch?"7px 28px 7px 10px":"7px 10px",fontSize:13}),width:"100%",boxSizing:"border-box"}}/>
+                {vendorSearch&&<button onClick={()=>setVendorSearch("")} style={{position:"absolute",right:6,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",color:C.muted,fontSize:14,lineHeight:1,padding:2}}>✕</button>}
+              </div>
               <button onClick={()=>setVendorMgrSort(s=>s==="az"?"za":"az")} style={{...btn(C.s2,C.muted,`1px solid ${C.border}`,11,"7px 10px"),flexShrink:0,whiteSpace:"nowrap",fontWeight:700}}>
                 {vendorMgrSort==="az"?"A–Z ↓":"Z–A ↑"}
               </button>
@@ -2278,7 +2284,7 @@ function ManageModal({taxonomy,setTaxonomy,vendorMap,setVendorMap,vendorList,set
                         <div style={{flex:1,minWidth:0}}>
                           <div style={{fontSize:13,fontWeight:600,color:C.text}}>{v.name}</div>
                           <div style={{fontSize:11,color:C.muted,marginTop:2}}>
-                            {v.category?<span style={{color:C.accent}}>{v.category}{v.subcategory?" › "+v.subcategory:""}</span>:<span style={{color:C.dim}}>No category</span>}
+                            {(function(){var dispCat=v.category;var dispSub=v.subcategory;if(!dispCat){var vTxs=(rawTxs||[]).filter(function(t){return (t.vendor||t.description)===v.name&&t.category;});if(vTxs.length){var cc={};vTxs.forEach(function(t){cc[t.category]=(cc[t.category]||0)+1;});dispCat=Object.keys(cc).sort(function(a,b){return cc[b]-cc[a];})[0];var sc={};vTxs.filter(function(t){return t.category===dispCat&&t.subcategory;}).forEach(function(t){sc[t.subcategory]=(sc[t.subcategory]||0)+1;});dispSub=Object.keys(sc).sort(function(a,b){return sc[b]-sc[a];})[0]||"";}}return dispCat?<span style={{color:C.accent}}>{dispCat}{dispSub?" › "+dispSub:""}</span>:<span style={{color:C.dim}}>No category</span>;})()}
                             {v.txType&&v.txType!=="standard"&&<span style={{marginLeft:6,color:C.dim,fontSize:10}}>{v.txType}</span>}
                           </div>
                         </div>
@@ -2529,11 +2535,12 @@ function RemapModal({tx,taxonomy,accounts,vendorList,onSave,onClose}) {
 // ─── Bulk Edit Modal ──────────────────────────────────────────────────────────
 function BulkEditModal({selected,transactions,taxonomy,accounts,vendorList,onSave,onClose}) {
   const txs=transactions.filter(t=>selected.has(t.date+"||"+t.description+"||"+t.amount));
-  const [cat,setCat]=useState("");
-  const [sub,setSub]=useState("");
+  var _solo=txs.length===1?txs[0]:null;
+  const [cat,setCat]=useState(_solo&&_solo.category&&taxonomy[_solo.category]?_solo.category:"");
+  const [sub,setSub]=useState(_solo&&_solo.subcategory&&taxonomy[_solo&&_solo.category]?.subs[_solo.subcategory]?_solo.subcategory:"");
   const [txType,setTxType]=useState("");
-  const [bulkAccountId,setBulkAccountId]=useState("_keep");
-  const [bulkVendor,setBulkVendor]=useState("_keep"); // "_keep" | "" (clear) | vendor name | "__new__"
+  const [bulkAccountId,setBulkAccountId]=useState(_solo&&_solo.accountId?_solo.accountId:"_keep");
+  const [bulkVendor,setBulkVendor]=useState(_solo&&_solo.vendor?_solo.vendor:"_keep"); // "_keep" | "" (clear) | vendor name | "__new__"
   const [bulkVendorNew,setBulkVendorNew]=useState("");
 
   const effectiveBulkVendor=bulkVendor==="__new__"?(bulkVendorNew.trim()||"_keep"):bulkVendor;
@@ -4234,7 +4241,7 @@ function Drill({txs,cur,dispRates,taxonomy,onRemap,onBulkEdit,onBulkDelete,initC
       ? filteredItems.filter(t=>(t.description||"").toLowerCase().includes(drillSearch.toLowerCase())||(t.account||"").toLowerCase().includes(drillSearch.toLowerCase()))
       : filteredItems;
     // Sort
-    const sortedItems=searchedItems.slice().sort((a,b)=>drillSort==="date"?(b.date>a.date?1:-1):(b.amount-a.amount));
+    const sortedItems=searchedItems.slice().sort((a,b)=>drillSort==="date"?(b.date>a.date?1:-1):drillSort==="name"?((a.description||"").localeCompare(b.description||"")):(b.amount-a.amount));
     // Duplicate detection
     function dupeKey(t){return (t.date||"")+"||"+(t.description||"").toLowerCase().trim()+"||"+(parseFloat(t.amount)||0).toFixed(2);}
     const dupeCounts={};
@@ -4260,7 +4267,10 @@ function Drill({txs,cur,dispRates,taxonomy,onRemap,onBulkEdit,onBulkDelete,initC
           <div style={{fontFamily:"inherit",fontSize:22,color:readableColour(cd.color)}}>{fmt((avgMode?netCost/(mMonths||1):netCost),cur,dispRates)}</div>
         </div>
         {/* Search */}
-        <input value={drillSearch} onChange={e=>{setDrillSearch(e.target.value);setDrillSel(new Set());}} placeholder="Search transactions…" style={{...inp(),width:"100%",marginBottom:10,boxSizing:"border-box",fontSize:13}}/>
+        <div style={{position:"relative",width:"100%",marginBottom:10}}>
+          <input value={drillSearch} onChange={e=>{setDrillSearch(e.target.value);setDrillSel(new Set());}} placeholder="Search transactions…" style={{...inp(),width:"100%",boxSizing:"border-box",fontSize:13,paddingRight:drillSearch?28:undefined}}/>
+          {drillSearch&&<button onClick={()=>{setDrillSearch("");setDrillSel(new Set());}} style={{position:"absolute",right:8,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",color:C.muted,fontSize:14,lineHeight:1,padding:2}}>✕</button>}
+        </div>
         {/* Account filter pills */}
         {acctSet.length>1&&(
           <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:10}}>
@@ -4273,6 +4283,7 @@ function Drill({txs,cur,dispRates,taxonomy,onRemap,onBulkEdit,onBulkDelete,initC
           <div style={{display:"flex",gap:4}}>
             <button onClick={()=>setDrillSort("value")} style={sortBtnStyle(drillSort==="value")}>Value ↓</button>
             <button onClick={()=>setDrillSort("date")} style={sortBtnStyle(drillSort==="date")}>Date ↓</button>
+            <button onClick={()=>setDrillSort("name")} style={sortBtnStyle(drillSort==="name")}>A–Z</button>
           </div>
           <button onClick={()=>{var next=new Set(allSel?[]:(sortedItems.map((_,i)=>i)));setDrillSel(next);}} style={{...pillStyle(allSel),fontSize:12}}>
             {allSel?"✓ ":"☐ "}Select All ({sortedItems.length})
@@ -4471,7 +4482,7 @@ function DrillTxOverlay({txs,label,currency,dispRates,taxonomy,onRemap,onClose})
 
 // ─── Main App ─────────────────────────────────────────────────────────────────
 // ─── Vendor View ─────────────────────────────────────────────────────────────
-function VendorView({transactions, currency, dispRates, pFrom, pTo, selMonths, setRawTxs, rawTxs, vendorList, setVendorMap, taxonomy, openModal, setManageInitSection}) {
+function VendorView({transactions, currency, dispRates, pFrom, pTo, selMonths, setRawTxs, rawTxs, vendorList, setVendorList, setVendorMap, taxonomy, openModal, setManageInitSection, onBulkEdit, onBulkDelete, onRemap}) {
   const today   = new Date();
   const ym      = d => d.toISOString().slice(0,7);
   const thisM   = ym(today);
@@ -4481,11 +4492,21 @@ function VendorView({transactions, currency, dispRates, pFrom, pTo, selMonths, s
   const [search,      setSearch]      = useState("");
   const [selected,    setSelected]    = useState(new Set());
   const [vendorSort,  setVendorSort]  = useState("name_asc"); // name_asc|name_desc|amount_desc|amount_asc|date_desc|date_asc
+  const [noCatFilter, setNoCatFilter] = useState(false);
   const [renameOpen,  setRenameOpen]  = useState(false);
   const [newName,     setNewName]     = useState("");
   const [catEditOpen, setCatEditOpen] = useState(false);
   const [editCat,     setEditCat]     = useState("");
   const [editSub,     setEditSub]     = useState("");
+  const [addVendorOpen,setAddVendorOpen]=useState(false);
+  const [addVendorName,setAddVendorName]=useState("");
+  const [delConfirmOpen,setDelConfirmOpen]=useState(false);
+  const [vendorTxSort,setVendorTxSort]=useState("date");
+  const [vendorSel,setVendorSel]=useState(new Set());
+  const [vendorTxSearch,setVendorTxSearch]=useState("");
+
+  // Reset vendorSel and vendorTxSearch when vendor selection changes
+  useEffect(()=>{setVendorSel(new Set());setVendorTxSearch("");},[selected]);
 
   // Build vendor last-transaction-date map
   const vendorLastDate = useMemo(()=>{
@@ -4516,7 +4537,16 @@ function VendorView({transactions, currency, dispRates, pFrom, pTo, selMonths, s
     return vs;
   },[transactions,vendorSort,vendorTotal,vendorLastDate]);
 
-  const filtered = useMemo(()=>allVendors.filter(v=>v.toLowerCase().includes(search.toLowerCase())),[allVendors,search]);
+  const filtered = useMemo(()=>{
+    var base=allVendors.filter(v=>v.toLowerCase().includes(search.toLowerCase()));
+    if(!noCatFilter) return base;
+    return base.filter(function(v){
+      var vObj=(vendorList||[]).find(function(x){return x.name===v;});
+      if(vObj&&vObj.category) return false;
+      var vTxs=(rawTxs||[]).filter(function(t){return (t.vendor||t.description)===v&&t.category;});
+      return vTxs.length===0;
+    });
+  },[allVendors,search,noCatFilter,vendorList,rawTxs]);
 
   function toggle(v){ setSelected(prev=>{ const s=new Set(prev); s.has(v)?s.delete(v):s.add(v); return s; }); }
   function selectAll(){ setSelected(new Set(filtered)); }
@@ -4616,7 +4646,13 @@ function VendorView({transactions, currency, dispRates, pFrom, pTo, selMonths, s
       return prev.map(function(t){
         var v = t.vendor||t.description;
         if(!selected.has(v)) return t;
-        return Object.assign({},t,{category:editCat,subcategory:editSub});
+        return Object.assign({},t,{category:editCat,subcategory:editSub,_manual:true});
+      });
+    });
+    setVendorList(function(prev){
+      return (prev||[]).map(function(v){
+        if(!selected.has(v.name)) return v;
+        return Object.assign({},v,{category:editCat,subcategory:editSub});
       });
     });
     setSelected(new Set());
@@ -4632,7 +4668,6 @@ function VendorView({transactions, currency, dispRates, pFrom, pTo, selMonths, s
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10,flexWrap:"wrap",gap:8}}>
           <div style={{fontFamily:"inherit",fontSize:17}}>Select Vendors</div>
           <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
-            {openModal&&setManageInitSection&&<button onClick={()=>{setManageInitSection("vendors");openModal("manage");}} style={btn(C.accent,"#fff","none",12,"7px 14px")}>✎ Edit vendors</button>}
             <Pill
               options={[
                 ["name_asc",  isActive=>vendorSort==="name_desc"?"Z–A":"A–Z"],
@@ -4645,18 +4680,24 @@ function VendorView({transactions, currency, dispRates, pFrom, pTo, selMonths, s
                 else if(v==="amount_desc") setVendorSort(vendorSort==="amount_desc"?"amount_asc":"amount_desc");
                 else if(v==="date_desc")   setVendorSort(vendorSort==="date_desc"?"date_asc":"date_desc");
               }}/>
+            <button onClick={()=>setNoCatFilter(v=>!v)} style={btn(noCatFilter?C.accent:C.s2,noCatFilter?"#fff":C.muted,`1px solid ${noCatFilter?C.accent:C.border}`,11,"5px 10px")}>⚠️ No cat</button>
             <button onClick={selectAll} style={btn(C.s2,C.muted,`1px solid ${C.border}`,11,"5px 10px")}>All visible</button>
             <button onClick={clearAll}  style={btn(C.s2,C.muted,`1px solid ${C.border}`,11,"5px 10px")}>Clear</button>
-            {selected.size>=1&&<button onClick={function(){ setRenameOpen(function(o){return !o;}); setNewName(""); setCatEditOpen(false); }} style={btn(renameOpen?C.accent:C.s2, renameOpen?"#fff":C.muted, renameOpen?"none":`1px solid ${C.border}`,11,"5px 10px")}>Rename selected</button>}
-            {selected.size>=1&&<button onClick={function(){ setCatEditOpen(function(o){return !o;}); var firstSel=Array.from(selected)[0]; var selTxs=(rawTxs||transactions).filter(function(t){return (t.vendor||t.description)===firstSel&&t.category;}); var catCounts={}; selTxs.forEach(function(t){catCounts[t.category]=(catCounts[t.category]||0)+1;}); var topCat=Object.keys(catCounts).sort(function(a,b){return catCounts[b]-catCounts[a];})[0]||""; var subCounts={}; selTxs.filter(function(t){return t.category===topCat&&t.subcategory;}).forEach(function(t){subCounts[t.subcategory]=(subCounts[t.subcategory]||0)+1;}); var topSub=Object.keys(subCounts).sort(function(a,b){return subCounts[b]-subCounts[a];})[0]||""; var preCat=topCat&&(taxonomy||{})[topCat]?topCat:Object.keys(taxonomy||{})[0]||""; var preSub=topSub&&(taxonomy||{})[preCat]?.subs[topSub]?topSub:Object.keys((taxonomy||{})[preCat]?.subs||{})[0]||""; setEditCat(preCat); setEditSub(preSub); setRenameOpen(false); setNewName(""); }} style={btn(catEditOpen?C.accent:C.s2, catEditOpen?"#fff":C.muted, catEditOpen?"none":`1px solid ${C.border}`,11,"5px 10px")}>Edit category</button>}
+            {selected.size===0&&<button onClick={()=>{setAddVendorOpen(v=>!v);setAddVendorName("");}} style={btn(C.accent,"#fff","none",12,"7px 14px")}>+ Add</button>}
+            {selected.size>=1&&<button onClick={function(){ setRenameOpen(function(o){return !o;}); setNewName(""); setCatEditOpen(false); setDelConfirmOpen(false); }} style={btn(renameOpen?C.accent:C.s2, renameOpen?"#fff":C.muted, renameOpen?"none":`1px solid ${C.border}`,11,"5px 10px")}>Rename selected</button>}
+            {selected.size>=1&&<button onClick={function(){ setCatEditOpen(function(o){return !o;}); var firstSel=Array.from(selected)[0]; var selTxs=(rawTxs||transactions).filter(function(t){return (t.vendor||t.description)===firstSel&&t.category;}); var catCounts={}; selTxs.forEach(function(t){catCounts[t.category]=(catCounts[t.category]||0)+1;}); var topCat=Object.keys(catCounts).sort(function(a,b){return catCounts[b]-catCounts[a];})[0]||""; var subCounts={}; selTxs.filter(function(t){return t.category===topCat&&t.subcategory;}).forEach(function(t){subCounts[t.subcategory]=(subCounts[t.subcategory]||0)+1;}); var topSub=Object.keys(subCounts).sort(function(a,b){return subCounts[b]-subCounts[a];})[0]||""; var preCat=topCat||Object.keys(taxonomy||{})[0]||""; var preSub=topSub||Object.keys((taxonomy||{})[preCat]?.subs||{})[0]||""; setEditCat(preCat); setEditSub(preSub); setRenameOpen(false); setDelConfirmOpen(false); setNewName(""); }} style={btn(catEditOpen?C.accent:C.s2, catEditOpen?"#fff":C.muted, catEditOpen?"none":`1px solid ${C.border}`,11,"5px 10px")}>Edit category</button>}
+            {selected.size>=1&&<button onClick={function(){setDelConfirmOpen(function(o){return !o;}); setRenameOpen(false); setCatEditOpen(false);}} style={btn(delConfirmOpen?"rgba(192,57,43,0.15)":C.s2,delConfirmOpen?C.danger:C.muted,`1px solid ${delConfirmOpen?"rgba(192,57,43,0.4)":C.border}`,11,"5px 10px")}>🗑 Delete</button>}
           </div>
         </div>
-        <input
-          value={search}
-          onChange={e=>setSearch(e.target.value)}
-          placeholder="Search vendors…"
-          style={{...inp(),width:"100%",marginBottom:10,boxSizing:"border-box",fontSize:13}}
-        />
+        <div style={{position:"relative",width:"100%",marginBottom:10}}>
+          <input
+            value={search}
+            onChange={e=>setSearch(e.target.value)}
+            placeholder="Search vendors…"
+            style={{...inp(),width:"100%",boxSizing:"border-box",fontSize:13,paddingRight:search?28:undefined}}
+          />
+          {search&&<button onClick={()=>setSearch("")} style={{position:"absolute",right:8,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",color:C.muted,fontSize:14,lineHeight:1,padding:2}}>✕</button>}
+        </div>
         <div style={{maxHeight:220,overflowY:"auto",border:`1px solid ${C.border}`,borderRadius:10,background:C.bg}}>
           {filtered.length===0&&<div style={{padding:16,textAlign:"center",color:C.dim,fontSize:13}}>No vendors found</div>}
           {filtered.map(v=>{
@@ -4665,6 +4706,15 @@ function VendorView({transactions, currency, dispRates, pFrom, pTo, selMonths, s
               <div key={v} onClick={()=>toggle(v)} style={{padding:"9px 14px",display:"flex",alignItems:"center",gap:10,borderBottom:`1px solid ${C.s2}`,cursor:"pointer",background:on?"rgba(184,245,118,0.05)":"transparent"}}>
                 <div style={{width:18,height:18,borderRadius:4,border:`2px solid ${on?C.accent:C.border}`,background:on?C.accent:"transparent",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,color:"#fff",fontWeight:700,flexShrink:0}}>{on?"✓":""}</div>
                 <span style={{fontSize:13,color:on?C.text:C.muted,flex:1}}>{v}</span>
+                {(function(){
+                  var vObj=(vendorList||[]).find(function(x){return x.name===v;});
+                  var txType=vObj?vObj.txType||"standard":"standard";
+                  var types=["standard","nonstandard","exceptional"];
+                  var meta={standard:{label:"★ Fixed",color:C.accent},nonstandard:{label:"◆ Variable",color:"#7b6cf6"},exceptional:{label:"⚡ Exc",color:"#f5a623"}};
+                  if(!vObj) return null;
+                  var m=meta[txType]||meta.standard;
+                  return <button onClick={function(e){e.stopPropagation(); var next=types[(types.indexOf(txType)+1)%types.length]; setVendorList(function(prev){return (prev||[]).map(function(x){return x.name===v?Object.assign({},x,{txType:next}):x;});});}} style={{...btn("transparent",m.color,`1px solid ${m.color}`,10,"3px 7px"),flexShrink:0,whiteSpace:"nowrap"}}>{m.label}</button>;
+                })()}
                 <div style={{textAlign:"right"}}>
                   {(function(){
                     var net=transactions.filter(function(t){return (t.vendor||t.description)===v;}).reduce(function(s,t){return s+(t.isCredit?t.amount:-t.amount);},0);
@@ -4715,6 +4765,37 @@ function VendorView({transactions, currency, dispRates, pFrom, pTo, selMonths, s
           </div>
         )}
 
+        {/* Inline add vendor form */}
+        {addVendorOpen&&selected.size===0&&(
+          <div style={{marginTop:14,padding:14,background:C.s2,borderRadius:10,border:`1px solid ${C.border}`}}>
+            <div style={{fontSize:11,color:C.dim,textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:8}}>New vendor name</div>
+            <input value={addVendorName} onChange={function(e){setAddVendorName(e.target.value);}} placeholder="Enter vendor name…" style={{...inp(),width:"100%",boxSizing:"border-box",fontSize:13,marginBottom:10}} autoFocus/>
+            <div style={{display:"flex",gap:8}}>
+              <button onClick={function(){
+                var n=addVendorName.trim(); if(!n) return;
+                if((vendorList||[]).some(function(v){return v.name.toLowerCase()===n.toLowerCase();})) return;
+                setVendorList(function(prev){return [...(prev||[]),{name:n,category:"",subcategory:"",txType:"standard"}];});
+                setAddVendorOpen(false); setAddVendorName("");
+              }} disabled={!addVendorName.trim()||(vendorList||[]).some(function(v){return v.name.toLowerCase()===addVendorName.trim().toLowerCase();})} style={btn(!addVendorName.trim()?C.s2:C.accent,!addVendorName.trim()?C.dim:"#fff","none",12,"6px 14px")}>Add</button>
+              <button onClick={function(){setAddVendorOpen(false);setAddVendorName("");}} style={btn(C.s2,C.muted,`1px solid ${C.border}`,12,"6px 14px")}>Cancel</button>
+            </div>
+          </div>
+        )}
+
+        {/* Inline delete confirm */}
+        {delConfirmOpen&&selected.size>=1&&(
+          <div style={{marginTop:14,padding:14,background:"rgba(192,57,43,0.06)",borderRadius:10,border:`1px solid rgba(192,57,43,0.25)`}}>
+            <div style={{fontSize:13,color:C.danger,fontWeight:600,marginBottom:10}}>Delete {selected.size} vendor{selected.size!==1?"s":""}? This removes them from the vendor list but does not delete their transactions.</div>
+            <div style={{display:"flex",gap:8}}>
+              <button onClick={function(){
+                setVendorList(function(prev){return (prev||[]).filter(function(v){return !selected.has(v.name);});});
+                setSelected(new Set()); setDelConfirmOpen(false);
+              }} style={btn("rgba(192,57,43,0.9)","#fff","none",12,"6px 14px")}>Confirm delete</button>
+              <button onClick={function(){setDelConfirmOpen(false);}} style={btn(C.s2,C.muted,`1px solid ${C.border}`,12,"6px 14px")}>Cancel</button>
+            </div>
+          </div>
+        )}
+
         {/* Inline category edit form */}
         {catEditOpen&&(function(){
           var catKeys = Object.keys(taxonomy||{});
@@ -4755,24 +4836,59 @@ function VendorView({transactions, currency, dispRates, pFrom, pTo, selMonths, s
 
 
 
-      {/* Transactions for selected vendors */}
+      {/* Transactions for selected vendors — full Drill experience */}
       {selected.size>0&&(()=>{
-        const selTxs=transactions
-          .filter(t=>selected.has(t.vendor||t.description))
-          .sort((a,b)=>b.date.localeCompare(a.date));
+        const txKey=function(t){return t.date+"||"+t.description+"||"+t.amount;};
+        const baseTxs=transactions.filter(t=>selected.has(t.vendor||t.description));
+        const searchedTxs=vendorTxSearch.trim()
+          ?baseTxs.filter(t=>(t.description||"").toLowerCase().includes(vendorTxSearch.toLowerCase())||(t.account||"").toLowerCase().includes(vendorTxSearch.toLowerCase()))
+          :baseTxs;
+        const selTxs=searchedTxs.slice().sort((a,b)=>vendorTxSort==="value"?(b.amount-a.amount):vendorTxSort==="name"?((a.description||"").localeCompare(b.description||"")):b.date.localeCompare(a.date));
+        const net=selTxs.reduce(function(s,t){return s+(t.isCredit?t.amount:-t.amount);},0);
+        const allSel=selTxs.length>0&&selTxs.every(function(t){return vendorSel.has(txKey(t));});
         return (
           <div style={card}>
+            {/* Header */}
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
               <div style={{fontFamily:"inherit",fontSize:17}}>Transactions</div>
-              {(function(){var net=selTxs.reduce(function(s,t){return s+(t.isCredit?t.amount:-t.amount);},0);return <span style={{fontSize:12,fontFamily:"monospace",color:net>=0?C.accent:C.danger}}>{selTxs.length} · {net>=0?"+":"-"}{fmt(Math.abs(net),currency,dispRates)}</span>;})}
+              <span style={{fontSize:12,fontFamily:"monospace",color:net>=0?C.accent:C.danger}}>{selTxs.length} · {net>=0?"+":"-"}{fmt(Math.abs(net),currency,dispRates)}</span>
             </div>
+            {/* Search bar */}
+            <div style={{position:"relative",width:"100%",marginBottom:10}}>
+              <input value={vendorTxSearch} onChange={function(e){setVendorTxSearch(e.target.value);setVendorSel(new Set());}} placeholder="Search transactions…" style={{...inp(),width:"100%",boxSizing:"border-box",fontSize:13,paddingRight:vendorTxSearch?28:undefined}}/>
+              {vendorTxSearch&&<button onClick={function(){setVendorTxSearch("");setVendorSel(new Set());}} style={{position:"absolute",right:8,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",color:C.muted,fontSize:14,lineHeight:1,padding:2}}>✕</button>}
+            </div>
+            {/* Toolbar: sort + select all */}
+            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10,flexWrap:"wrap"}}>
+              <div style={{display:"flex",gap:4}}>
+                {[["date","Date"],["value","Value"],["name","A–Z"]].map(function([v,l]){return <button key={v} onClick={function(){setVendorTxSort(v);}} style={{padding:"3px 9px",borderRadius:8,border:"1px solid "+(vendorTxSort===v?C.accent:C.border),background:vendorTxSort===v?"rgba(42,157,111,0.08)":"transparent",color:vendorTxSort===v?C.accent:C.muted,fontSize:11,fontWeight:vendorTxSort===v?700:500,cursor:"pointer",fontFamily:"inherit"}}>{l}</button>;})}
+              </div>
+              <button onClick={function(){var next=new Set(allSel?[]:(selTxs.map(function(t){return txKey(t);})));setVendorSel(next);}} style={{padding:"3px 10px",borderRadius:8,border:"1px solid "+(allSel?C.accent:C.border),background:allSel?"rgba(42,157,111,0.08)":"transparent",color:allSel?C.accent:C.muted,fontSize:11,fontWeight:allSel?700:500,cursor:"pointer",fontFamily:"inherit"}}>
+                {allSel?"✓ ":"☐ "}Select All ({selTxs.length})
+              </button>
+            </div>
+            {/* Bulk action bar */}
+            {vendorSel.size>0&&(
+              <div style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",background:"rgba(42,157,111,0.08)",border:"1px solid "+C.accent,borderRadius:10,marginBottom:10}}>
+                <div style={{fontSize:13,fontWeight:600,color:C.accent,flex:1}}>{vendorSel.size} selected</div>
+                <button onClick={function(){var selArr=selTxs.filter(function(t){return vendorSel.has(txKey(t));});if(onBulkEdit)onBulkEdit(selArr);setVendorSel(new Set());}} style={{...btn(C.accent,"#fff","none",12,"6px 14px")}}>✎ Edit selected</button>
+                <button onClick={function(){var selArr=selTxs.filter(function(t){return vendorSel.has(txKey(t));});if(!window.confirm("Delete "+selArr.length+" transaction(s)?"))return;if(onBulkDelete)onBulkDelete(selArr);setVendorSel(new Set());}} style={{...btn("rgba(245,118,118,0.15)",C.danger,"1px solid "+C.danger,12,"6px 14px")}}>🗑 Delete</button>
+                <button onClick={function(){setVendorSel(new Set());}} style={{...btn(C.s2,C.muted,`1px solid ${C.border}`,12,"6px 12px")}}>✕</button>
+              </div>
+            )}
+            {/* Transaction list */}
             <div style={{background:C.bg,border:`1px solid ${C.border}`,borderRadius:12,overflow:"hidden"}}>
               {selTxs.length===0
                 ? <div style={{padding:24,textAlign:"center",color:C.dim,fontSize:13}}>No transactions in this period</div>
-                : selTxs.map((tx,i)=>{
-                  const isCredit=tx.isCredit===true;
+                : selTxs.map(function(tx,i){
+                  var isSel=vendorSel.has(txKey(tx));
+                  var isCredit=tx.isCredit===true;
                   return (
-                    <div key={i} style={{padding:"10px 14px",display:"flex",alignItems:"center",gap:10,borderBottom:`1px solid ${C.s2}`}}>
+                    <div key={i} onClick={function(){var s=new Set(vendorSel);var k=txKey(tx);if(s.has(k))s.delete(k);else s.add(k);setVendorSel(s);}}
+                      style={{padding:"10px 14px",display:"flex",alignItems:"center",gap:10,borderBottom:`1px solid ${C.s2}`,cursor:"pointer",background:isSel?"rgba(42,157,111,0.07)":"transparent"}}>
+                      <div style={{width:18,height:18,borderRadius:4,border:"1.5px solid "+(isSel?C.accent:C.border),background:isSel?C.accent:"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                        {isSel&&<span style={{color:"#fff",fontSize:11,lineHeight:1}}>✓</span>}
+                      </div>
                       <div style={{flex:1,minWidth:0}}>
                         <div style={{fontSize:13,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{tx.vendor||tx.description}</div>
                         <div style={{fontSize:11,color:C.muted,marginTop:2}}>{fmtDNum(tx.date)}{tx.vendor&&<span style={{marginLeft:4,color:C.dim,fontStyle:"italic",fontSize:10}}>{tx.description}</span>} · {tx.category} › {tx.subcategory}</div>
@@ -4781,6 +4897,7 @@ function VendorView({transactions, currency, dispRates, pFrom, pTo, selMonths, s
                       <div style={{fontFamily:"monospace",fontSize:13,fontWeight:700,color:isCredit?C.accent:C.danger,flexShrink:0,textAlign:"right"}}>
                         {isCredit?"+":"-"}{fmtExact(tx.amount,currency)}
                       </div>
+                      <button onClick={function(e){e.stopPropagation();if(onRemap)onRemap(tx);}} style={{...btn(C.s3,C.muted,`1px solid ${C.border}`,11,"4px 9px"),flexShrink:0}}>✎</button>
                     </div>
                   );
                 })
@@ -9486,7 +9603,15 @@ function App() {
     const budg=storeLoad("ledger-budgets"); if(budg) setBudgetsRaw(budg);
     const spike=storeLoad("ledger-spike-threshold"); if(spike!=null) setSpikeThresholdRaw(spike);
     if(vmap) setVendorMapRaw(vmap);
-    const vlist=storeLoad("ledger-vendorlist"); if(vlist) setVendorListRaw(vlist);
+    const vlist=storeLoad("ledger-vendorlist");
+    if(vlist){
+      var tax2=storeLoad("ledger-taxonomy")||{};
+      var cleaned=vlist.map(function(v){
+        if(v.category&&!tax2[v.category]) return Object.assign({},v,{category:"",subcategory:""});
+        return v;
+      });
+      setVendorListRaw(cleaned);
+    }
     if(txs&&txs.length) setRawTxsRaw(txs);
     if(cur) setCurrency(cur);
     setLoaded(true);
@@ -10206,6 +10331,7 @@ function App() {
     {label:"Save Mappings",    icon:"⇥", action:function(){ openModal("saveMappings"); }},
     {label:"Re-apply Mappings",icon:"⇄", action:function(){ openModal("reapplyMappings"); }},
     {label:"Backup & Restore", icon:"◑", action:function(){ openModal("settings"); }},
+    {label:"Tag Accounts",     icon:"🏷", action:function(){ setManageInitSection("transactions"); setManageInitFinancialSub(null); openModal("manage"); }},
     {label:"AI Usage",         icon:"◑", action:function(){ setManageInitSection("gemini"); setManageInitFinancialSub(null); openModal("manage"); }},
   ];
   var ADD_SECTIONS = [
@@ -10238,7 +10364,7 @@ function App() {
                      display:"flex",alignItems:"center",gap:8,justifyContent:sidebarCollapsed?"center":"flex-start",flexShrink:0}}>
           <div style={{width:sidebarCollapsed?40:120,height:40,flexShrink:0,background:"transparent",display:"flex",flexDirection:"column",alignItems:sidebarCollapsed?"center":"flex-start"}}>
             <img src="Home_financials_LOGO_White_Back.png" alt="Home Financials" style={{width:sidebarCollapsed?36:120,height:36,objectFit:"contain",display:"block",background:"transparent"}}/>
-            {!sidebarCollapsed&&<div style={{fontSize:9,color:C.dim,fontWeight:600,letterSpacing:"0.06em",marginTop:2}}>hf-v132</div>}
+            {!sidebarCollapsed&&<div style={{fontSize:9,color:C.dim,fontWeight:600,letterSpacing:"0.06em",marginTop:2}}>hf-v136</div>}
           </div>
         </div>
         {/* Add / Import button */}
@@ -10287,6 +10413,11 @@ function App() {
                 title={sidebarCollapsed?item.label:undefined}
                 onClick={function(){
                   if(tab==="position"&&item.tab!=="position") setPositionUnlocked(false);
+                  if(item.tab==="transactions") {
+                    setTxSearch(""); setTxFilter("all"); setTxAccFilter(null); setTxCatFilter(null);
+                    setUncatOnly(false); setTxSubFilter("all"); setTxVendFilter("all");
+                    setSelTxs(new Set()); setDupesMode(false);
+                  }
                   setTab(item.tab);
                   if(item.tab!=="transactions") setTxViewMode("all");
                 }}
@@ -10379,7 +10510,7 @@ function App() {
           <div style={{display:"flex",alignItems:"center",gap:7,padding:"0 10px",flexShrink:0,borderRight:"0.5px solid "+C.border}}>
             <div style={{width:90,height:30,flexShrink:0,background:"transparent",display:"flex",flexDirection:"column",alignItems:"flex-start"}}>
               <img src="Home_financials_LOGO_White_Back.png" alt="Home Financials" style={{width:90,height:28,objectFit:"contain",display:"block",background:"transparent"}}/>
-              <div style={{fontSize:9,color:C.dim,fontWeight:600,letterSpacing:"0.06em"}}>hf-v132</div>
+              <div style={{fontSize:9,color:C.dim,fontWeight:600,letterSpacing:"0.06em"}}>hf-v136</div>
             </div>
           </div>
           {/* Nav items scrolling */}
@@ -10491,7 +10622,7 @@ function App() {
                   </select>
                 </div>
                 <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-                  <div style={{fontSize:10,color:C.dim,fontWeight:600,letterSpacing:"0.06em"}}>hf-v132</div>
+                  <div style={{fontSize:10,color:C.dim,fontWeight:600,letterSpacing:"0.06em"}}>hf-v136</div>
                   <button onClick={function(){signOut();setDrawerOpen(false);}} style={btn(C.s2,C.muted,"1px solid "+C.border,11,"4px 10px")}>Sign Out</button>
                 </div>
               </div>
@@ -10825,7 +10956,7 @@ function App() {
                   </div>
                 )}
 
-                {tab==="vendors"&&<VendorView transactions={mTxs} currency={displayCurrency} dispRates={dispRates} pFrom={pFrom} pTo={pTo} selMonths={selMonths} setRawTxs={setRawTxs} rawTxs={rawTxs} vendorList={vendorList} setVendorMap={setVendorMap} taxonomy={taxonomy} openModal={openModal} setManageInitSection={setManageInitSection}/>}
+                {tab==="vendors"&&<VendorView transactions={mTxs} currency={displayCurrency} dispRates={dispRates} pFrom={pFrom} pTo={pTo} selMonths={selMonths} setRawTxs={setRawTxs} rawTxs={rawTxs} vendorList={vendorList} setVendorList={setVendorList} setVendorMap={setVendorMap} taxonomy={taxonomy} openModal={openModal} setManageInitSection={setManageInitSection} onBulkEdit={function(selArr){var keys=new Set(selArr.map(function(t){return t.date+"||"+t.description+"||"+t.amount;}));setSelTxs(keys);setModal("bulk");}} onBulkDelete={function(selArr){var keys=new Set(selArr.map(function(t){return t.date+"||"+t.description+"||"+t.amount;}));deleteTransactions(function(t){return keys.has(t.date+"||"+t.description+"||"+t.amount);});}} onRemap={function(tx){setRemapTx(tx);setModal("remap");}}/>}
 
                 {tab==="transactions"&&(
                   <div style={card}>
@@ -10833,7 +10964,10 @@ function App() {
                       <button onClick={function(){ setManualInitMode("transaction"); setManualFromHome(false); openModal("manual"); }} style={btn(C.accent,"#fff","none",12,"6px 12px")}>+ Add transaction</button>
                       <button onClick={()=>{setManageInitSection("transactions");setManageInitFinancialSub(null);openModal("manage");}} style={btn(C.s2,C.muted,"1px solid "+C.border,12,"6px 12px")}>🔖 Tag accounts</button>
                     </div>
-                    <input value={txSearch} onChange={e=>setTxSearch(e.target.value)} placeholder="Search transactions, categories…" style={{...inp(),width:"100%",marginBottom:10,boxSizing:"border-box",fontSize:13}}/>
+                    <div style={{position:"relative",width:"100%",marginBottom:10}}>
+                      <input value={txSearch} onChange={e=>setTxSearch(e.target.value)} placeholder="Search transactions, categories…" style={{...inp(),width:"100%",boxSizing:"border-box",fontSize:13,paddingRight:txSearch?28:undefined}}/>
+                      {txSearch&&<button onClick={()=>setTxSearch("")} style={{position:"absolute",right:8,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",color:C.muted,fontSize:14,lineHeight:1,padding:2}}>✕</button>}
+                    </div>
                     {(()=>{
                       const ids=[...new Set(mTxs.map(t=>t.accountId).filter(Boolean))];
                       if(ids.length<1) return null;
@@ -10860,15 +10994,17 @@ function App() {
                     <div style={{display:"flex",gap:8,marginBottom:8,alignItems:"center",flexWrap:"wrap"}}>
                       <Pill
                         options={[
-                          ["amount_desc",  isActive=>txSort==="amount_asc"?"Value ↑":"Value ↓"],
-                          ["date_desc",    isActive=>txSort==="date_asc"?"Date ↑":"Date ↓"],
-                          ["category_asc", isActive=>"Category"],
+                          ["amount_desc",       isActive=>txSort==="amount_asc"?"Value ↑":"Value ↓"],
+                          ["date_desc",         isActive=>txSort==="date_asc"?"Date ↑":"Date ↓"],
+                          ["category_asc",      isActive=>"Category"],
+                          ["description_asc",   isActive=>"A–Z"],
                         ]}
-                        value={txSort==="amount_asc"?"amount_desc":txSort==="date_asc"?"date_desc":txSort}
+                        value={txSort==="amount_asc"?"amount_desc":txSort==="date_asc"?"date_desc":txSort==="description_desc"?"description_asc":txSort}
                         onChange={function(v){
                           setTxSort(function(prev){
                             if(v==="amount_desc") return prev==="amount_desc"?"amount_asc":"amount_desc";
                             if(v==="date_desc")   return prev==="date_desc"?"date_asc":"date_desc";
+                            if(v==="description_asc") return prev==="description_asc"?"description_desc":"description_asc";
                             return v;
                           });
                         }}

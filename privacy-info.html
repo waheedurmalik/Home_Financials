@@ -81,9 +81,9 @@
   <!-- WHAT IS GEMINI -->
   <div class="gemini-box">
     <h3>🤖 What is Google Gemini?</h3>
-    <p>Gemini is Google's AI model, similar to ChatGPT. When you import a statement, your app sends the document to Gemini's API via our Google Cloud processing server. Gemini reads the content and returns a list of transactions.</p>
+    <p>Gemini is Google's AI model, similar to ChatGPT. When you import a statement, your app sends the document to Gemini's API via the app's Google Cloud processing server. Gemini reads the content and returns a list of transactions.</p>
     <p>According to <a href="https://ai.google.dev/gemini-api/terms" target="_blank">Google's current API terms</a>, data sent via the API is not used to train Gemini's AI models. However, Google's policies could change in the future — and even under current terms, other risks exist, which are explained in the next section.</p>
-    <div class="policy-note">⚠️ <strong>Policy change risk:</strong> This app cannot automatically detect if Google updates its terms. We recommend checking <a href="https://ai.google.dev/gemini-api/terms" target="_blank">Google's API terms</a> periodically, especially before importing sensitive documents. The information on this page was last reviewed <strong>April 2026</strong>.</div>
+    <div class="policy-note">⚠️ <strong>Policy change risk:</strong> This app cannot automatically detect if Google updates its terms. We recommend checking <a href="https://ai.google.dev/gemini-api/terms" target="_blank">Google's API terms</a> periodically, especially before importing sensitive documents. The information on this page was last reviewed <strong>May 2026</strong>.</div>
   </div>
 
   <!-- WHY IS IT A RISK AT ALL -->
@@ -131,10 +131,10 @@
       </div>
     </div>
 
-    <div class="info-box green">Most bank PDFs downloaded from online banking work in this mode. Text is extracted by our Google Cloud processing server first, then sensitive values are removed (scrubbed) before anything is passed to Gemini.</div>
+    <div class="info-box green">Most bank PDFs downloaded from online banking work in this mode. Text is extracted by the app's Google Cloud processing server first, then sensitive values are removed (scrubbed) before anything is passed to Gemini.</div>
 
     <div class="flow">
-      <div class="flow-step"><div class="flow-num">1</div><div>Your PDF is sent to our Google Cloud processing server — nothing goes to Gemini yet</div></div>
+      <div class="flow-step"><div class="flow-num">1</div><div>Your PDF is sent to the app's Google Cloud processing server — nothing goes to Gemini yet</div></div>
       <div class="flow-step"><div class="flow-num">2</div><div>Text is extracted from the PDF</div></div>
       <div class="flow-step"><div class="flow-num">3</div><div>Sensitive values are automatically removed (scrubbed) from the text</div></div>
       <div class="flow-step"><div class="flow-num">4</div><div>The scrubbed text is sent to Gemini, which returns a transaction list</div></div>
@@ -240,7 +240,32 @@
     <div class="info-box green">💡 If you are concerned about any of the risks described on this page, XLS import is the safest option. Most banks offer an "Export to Excel" or "Download CSV" option in their online banking portal.</div>
   </div>
 
-  <!-- GENERAL PRINCIPLES -->
+
+  <!-- MODE 5: QUICK ENTRY & BATCH -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-icon">✏️</div>
+      <div>
+        <div class="section-title">Quick Entry &amp; Batch Entry <span class="badge badge-safe">LOW RISK</span></div>
+        <div class="section-subtitle">Typing transactions manually or in bulk</div>
+      </div>
+    </div>
+
+    <div class="info-box green">✓ These modes send only the text you type — no bank documents, no account numbers, no statement files.</div>
+
+    <p style="font-size:13px;color:#4a5568;line-height:1.6;margin-bottom:12px;">When you use Quick Entry (e.g. "Carrefour 230 groceries") or Batch Entry (multiple lines of transactions), the app sends the following to Gemini to parse your text into structured transactions:</p>
+
+    <div class="what-goes">
+      <div class="what-goes-row"><span class="goes-label">Sent to Gemini</span><span class="goes-val">The text you typed, your vendor names list, and your category names</span></div>
+      <div class="what-goes-row"><span class="goes-label">NOT sent</span><span class="goes-val safe">No bank documents, no account numbers, no balances, no transaction history</span></div>
+      <div class="what-goes-row"><span class="goes-label">Scrubbing</span><span class="goes-val safe">Not needed — you control exactly what text is typed</span></div>
+      <div class="what-goes-row"><span class="goes-label">Risk</span><span class="goes-val safe">Low — only the merchant name and amount you choose to type are shared</span></div>
+    </div>
+
+    <div class="info-box amber">⚠️ The general risks described above (data breach, human review, policy change) still technically apply — but the exposure is limited to what you type, which contains no sensitive account identifiers.</div>
+  </div>
+
+    <!-- GENERAL PRINCIPLES -->
   <div class="section">
     <h2>General principles</h2>
 
@@ -248,15 +273,15 @@
       <div class="flow-step"><div class="flow-num">1</div><div><strong>No data stored by us:</strong> Home Financials does not operate its own database servers. Your transactions are saved to your own Firebase account (Google Cloud) — not accessible to anyone else.</div></div>
       <div class="flow-step"><div class="flow-num">2</div><div><strong>Gemini API — current policy:</strong> According to Google's API terms as of April 2026, data sent via the API is not used to train AI models. We recommend <a href="https://ai.google.dev/gemini-api/terms" target="_blank" style="color:#2a9d6f;font-weight:600;">checking Google's current terms</a> periodically, as these may change without notice.</div></div>
       <div class="flow-step"><div class="flow-num">3</div><div><strong>Your choice:</strong> You decide what to import and how. If you are not comfortable sending a document to Gemini, use XLS import or add transactions manually. The app works fully without Gemini.</div></div>
-      <div class="flow-step"><div class="flow-num">4</div><div><strong>Secure transit:</strong> All data is transmitted over HTTPS. The Gemini API key is stored securely in our Google Cloud processing server's environment — it is never exposed in the app code.</div></div>
-      <div class="flow-step"><div class="flow-num">5</div><div><strong>Staying up to date:</strong> This page was last reviewed in April 2026. If Google's policies change materially, we will aim to update this page. However, we are a personal app and cannot guarantee immediate updates. When in doubt, check Google's terms directly.</div></div>
+      <div class="flow-step"><div class="flow-num">4</div><div><strong>Secure transit:</strong> All data is transmitted over HTTPS. The Gemini API key is stored securely in the app's Google Cloud processing server's environment — it is never exposed in the app code.</div></div>
+      <div class="flow-step"><div class="flow-num">5</div><div><strong>Staying up to date:</strong> This page was last reviewed in May 2026. If Google's policies change materially, we will aim to update this page. However, we are a personal app and cannot guarantee immediate updates. When in doubt, check Google's terms directly.</div></div>
     </div>
   </div>
 
   <div class="footer">
     <p>Home Financials — personal finance app</p>
     <p style="margin-top:6px;"><a href="/Home_Financials/">← Back to app</a></p>
-    <p style="margin-top:10px;font-size:11px;color:#aab0bb;">This page is for your information only. It is not a legal privacy policy. Last reviewed April 2026.</p>
+    <p style="margin-top:10px;font-size:11px;color:#aab0bb;">This page is for your information only. It is not a legal privacy policy. Last reviewed May 2026.</p>
   </div>
 
 </div>
